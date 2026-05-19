@@ -2,28 +2,28 @@
   "categories": ["alerts & updates", "games & entertainment"],
   "default_locale": "en-US",
   "description": {
-    "en-US": "Set daily Monkeytype typing goals, and if you wish, get notified as you meet them. As a plus, enjoy the extension's ability to match Monkeytype's theme! This extension is not affiliated with Monkeytype."
+    "en-US": "Set daily typing goals and track your progress of achieving them."
   },
   "homepage": {
-    "en-US": "https://github.com/MysticalRobot/Goal-Tracker-for-Monkeytype"
+    "en-US": "https://github.com/MysticalRobot/Typing-Goal-Tracker"
   },
   "support_url": {
-    "en-US": "https://github.com/MysticalRobot/Goal-Tracker-for-Monkeytype/issues"
+    "en-US": "https://github.com/MysticalRobot/Typing-Goal-Tracker/issues"
   },
   "experimental": true,
   "support_email": { 
     "en-US": "dhruv21420@gmail.com" 
   },
   "developer_comments": {
-    "en-US": "On my 2017 MacBook Air, the extension's notifications do not always display as intended, and the recorded time typing is not always accurate. I believe this should be less of an issue, if at all, on more capable hardware. I do not have plans to add more features."
+    "en-US": "This extension collects data in Firefox's synced storage to enable its functionality. It does not transmit data elsewhere."
   },
   "name": { 
-    "en-US": "Goal Tracker for Monkeytype"
+    "en-US": "Daily Typing Goal Tracker"
   },
   "requires_payment": false,
-  "slug": "goal-tracker-for-monkeytype", 
+  "slug": "typing-goal-tracker", 
   "summary": { 
-    "en-US": "A tool that helps users reach their daily typing goals on Monkeytype." 
+    "en-US": "A tool that helps Monkeytype users reach their daily typing goals." 
   },  
   "version": {
     "license": "MIT"

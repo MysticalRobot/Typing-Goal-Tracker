@@ -69,7 +69,6 @@ progress {
   height: 100%;
   background: none;
 
-  /* TODO update for Chrome */
   &::-moz-progress-bar {
     background-color: var(--main-color);
   }
@@ -93,15 +92,9 @@ input {
   }
 
   &[type="number"] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
-
-  /* TODO use for Chrome */
-  /* &::-webkit-outer-spin-button, */
-  /* &::-webkit-inner-spin-button { */
-  /*   -webkit-appearance: none; */
-  /*   margin: 0; */
-  /* } */
 }
 
 ::selection {
@@ -118,7 +111,7 @@ input {
   height: 1.75rem;
 }
 
-#notifications {
+#notifFrequencyButtons {
   display: grid;
   grid-auto-rows: repeat(4, 1fr);
 }
@@ -138,7 +131,7 @@ input {
   }
 }
 
-#popupToggleCommandContainer {
+#popupToggleContainer {
   background-color: var(--sub-alt-color);
   display: flex;
   height: 1.75rem;
@@ -160,11 +153,11 @@ input {
   }
 }
 
-.notificationFrequencyButton {
+.notifFrequencyButton {
   height: 1.75rem;
 }
 
-.notificationFrequencyButton[data-checked="true"] {
+.notifFrequencyButton[data-checked="true"] {
   background-color: var(--main-color);
   color: var(--bg-color);
 }

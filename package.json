@@ -1,8 +1,8 @@
 {
-	"name": "Goal-Tracker-for-Monkeytype",
+	"name": "Typing-Goal-Tracker",
 	"devDependencies": {
-		"@types/firefox-webext-browser": "^120.0.4",
-		"typescript": "^5.9.2"
+		"@types/firefox-webext-browser": "^120.0.5",
+		"typescript": "^5.9.3"
 	},
 	"private": true,
 	"scripts": {

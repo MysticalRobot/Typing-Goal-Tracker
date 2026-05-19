@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en-US">
+
+<head>
+  <meta charset="utf-8" />
+  <script src="./app.ts" type="module"></script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <h1>today's progress</h1>
+  <div id="progressBarContainer">
+    <progress id="progressBar" min="0" max="100" value="0"></progress>
+  </div>
+  <br>
+  <hr>
+  <h1>daily goals (min)</h1>
+  <form id="dailyGoalsForm">
+    <div>
+      <label for="sun">sun</label>
+      <!-- 1440 minutes in a day -->
+      <input id="sun" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="mon">mon</label>
+      <input id="mon" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="tue">tue</label>
+      <input id="tue" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="wed">wed</label>
+      <input id="wed" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="thu">thu</label>
+      <input id="thu" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="fri">fri</label>
+      <input id="fri" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <div>
+      <label for="sat">sat</label>
+      <input id="sat" class="dailyGoalInput" type="number" min="0" max="1440" value="0" />
+    </div>
+    <button id="saveDailyGoalsInput" class="hoverable" type="submit">save</button>
+  </form>
+  <hr>
+  <h1>settings</h1>
+  <form>
+    <h2>notifications</h2>
+    <div id="notifFrequencyButtons">
+      <button id="never" class="notifFrequencyButton hoverable">never</button>
+      <button id="quarterGoalCompletion" class="notifFrequencyButton hoverable">quarter goal completion</button>
+      <button id="halfGoalCompletion" class="notifFrequencyButton hoverable">half goal completion</button>
+      <button id="goalCompletion" class="notifFrequencyButton hoverable">goal completion</button>
+    </div>
+    <h2>popup toggle</h2>
+    <div>
+      <div id="popupToggleContainer" >
+        <p id="popupToggle" ></p>
+        <span>|</span>
+        <p><a id="editPopupToggleLink" >edit</a></p>
+      </div>
+    </div>
+  </form>
+</body>
+
+</html>

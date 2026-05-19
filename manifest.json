@@ -1,20 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "Goal Tracker for Monkeytype",
-  "version": "1.0",
-  "description": "A tool that helps users reach their daily typing goals on Monkeytype.",
-  "homepage_url": "https://github.com/MysticalRobot/Goal-Tracker-for-Monkeytype",
+  "name": "Typing Goal Tracker",
+  "version": "1.1",
+  "description": "A tool that helps users reach their daily typing goals.",
+  "homepage_url": "https://github.com/MysticalRobot/Typing-Goal-Tracker",
   "browser_specific_settings": {
     "gecko": {
-      "id": "{f3c0eabd-523c-4704-8601-9ac925c8613c}"
+      "id": "{f3c0eabd-523c-4704-8601-9ac925c8613c}",
+      "data_collection_permissions": {
+        "required": ["browsingActivity", "websiteActivity"]
+      }
     }
   },
   "icons": {
-    "48": "./icon.svg"
+    "48": "./assets/icon.svg"
   },
   "action": {
-    "default_icon": "./icon.svg",
-    "default_title": "Monkeytype Goal Tracker",
+    "default_icon": "./assets/icon.svg",
+    "default_title": "Typing Goal Tracker",
     "default_popup": "./dist/index.html"
   },
   "background": {
@@ -23,26 +26,20 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://monkeytype.com/*"],
-      "js": ["./dist/update-theme.js"],
-      "run_at": "document_end"
-    },
-    {
       "matches": ["https://monkeytype.com/"],
-      "js": ["./dist/count-typing.js"],
+      "js": ["./dist/content-script.js"],
       "run_at": "document_end"
     }
   ],
- 	"permissions": [
+  "permissions": [
     "notifications",
-    "tabs",
     "storage"
   ],
   "commands": {
     "_execute_action": {
       "suggested_key": {
-        "default": "Ctrl+Shift+M",
-        "mac": "Command+Shift+M"
+        "default": "Ctrl+Shift+0",
+        "mac": "Command+Shift+0"
       },
       "description": "toggle the popup"
     }
