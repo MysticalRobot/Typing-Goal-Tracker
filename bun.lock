@@ -6,13 +6,13 @@
       "name": "Typing-Goal-Tracker",
       "devDependencies": {
         "@types/firefox-webext-browser": "^120.0.4",
-        "typescript": "^5.9.2",
-      },
-    },
+        "typescript": "^5.9.2"
+      }
+    }
   },
   "packages": {
     "@types/firefox-webext-browser": ["@types/firefox-webext-browser@120.0.5", "", {}, "sha512-imn8ecga0HQWcOSvxy9i0lD+7vpHgkj1NVLvXS1lNHqHt03Z4QwazeEdoWe+C9JXpmVyKiRanb+z9D/w001tRg=="],
 
-    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="]
   }
 }

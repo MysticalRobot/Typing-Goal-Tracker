@@ -1,10 +1,9 @@
 import { 
   type DailyGoals, 
   type Store, 
-  notifFrequencies, 
-  type NotifFrequency, 
   type Message,
-  type SerializedDate
+  type SerializedDate,
+  type TempStore,
 } from './types.ts';
 
 export function invariant(cond: any, msg?: string): asserts cond {
@@ -35,27 +34,103 @@ export function getDate(d: SerializedDate): Date {
   return new Date(d);
 }
 
+export function matchedByURLPattern(p1: string) {
+  // IGNORE
+  const p1Pattern = new URLPattern(p1);
+  return (p2: string): boolean => {
+    return p1 === p2 || p1Pattern.test(p2);
+  };
+}
+
+export function matchesURLPattern(p1: string) {
+  return (p2: string): boolean => {
+    // IGNORE
+    return p1 === p2 || new URLPattern(p2).test(p1);
+  };
+}
+
+export function getTrackedSitePatternElement(
+  trackedSitePattern: string
+): HTMLDivElement {
+  // `<div class="threeToOneSplit trackedSitePattern" >
+  //   <span>${site}</span>
+  //   <button class="hoverable">x</button>
+  // </div>`
+  const div = document.createElement('div');
+  div.classList.add('threeToOneSplit', 'trackedSitePattern');
+  const span = document.createElement('span');
+  span.innerText = trackedSitePattern;
+  const button = document.createElement('button');
+  button.innerText = 'x';
+  button.classList.add('hoverable');
+  div.append(span, button);
+  return div;
+}
+
+export function getContentScriptRegistrationDetails(
+  trackedSitePatterns: string[]
+) {
+  return {
+    id: 'time-typed-counter',
+    js: ['./dist/content-script.js'],
+    matches: trackedSitePatterns,
+  }
+}
+
+export const defaultStore: Store = {
+  timeTypedMS: 0,
+  timeTypedDate: getSerializedDate(new Date()),
+  // TODO revert to 0s
+  dailyGoalsMin: [1, 1, 1, 1, 1, 1, 1], 
+  notifPreference: 'quarterGoalCompletion',
+  siteTrackingPreference: 'off',
+  trackedSitePatterns: [],
+} as const;
+export const dailyGoalsOrder = [
+  'sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'
+] as const;
+export const notifPreferences = [
+  'never', 'quarterGoalCompletion', 'halfGoalCompletion', 'goalCompletion'
+] as const;
+export const notifPermission: browser.permissions.Permissions = { 
+  permissions: ['notifications'] 
+} as const;
+export const siteTrackingPreferences = ['off', 'on'] as const;
+
+// TODO replace with trackedSitePatterns
+export const siteTrackingPermission: browser.permissions.Permissions = { 
+  origins: ['<all_urls>'] 
+  // origins: ['https://monkeytype.com/*', 'https://www.edclub.com/*'] 
+} as const;
+
 export class StoreService {
-  static defaultStore: Store = {
-    timeTypedMS: 0,
-    timeTypedDate: getSerializedDate(new Date()),
-    // TODO revert to 0s
-    dailyGoalsMin: [1, 1, 1, 1, 1, 1, 1], 
-    notifFrequency: 'quarterGoalCompletion',
-    trackedSites: [],
-  } as const;
-  static dailyGoalsOrder = [
-    'sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'
-  ] as const;
-  static notifFrequencies: readonly NotifFrequency[] = notifFrequencies;
   static async get<T extends keyof Store>(key: T): Promise<Store[T]> {
     const storage = await browser.storage.sync.get(key);
-    const value = storage[key] ?? this.defaultStore[key];
+    const value = storage[key] ?? defaultStore[key];
+    console.log(`retrieved ${key}:`, value)
     this.set(key, value);
     return value;
   }
+  // TODO reject if too much
+  // const getByteLength = (s: string) => new TextEncoder().encode(s).length;
+  // const maxItemSize = 8192;
   static async set<T extends keyof Store>(key: T, value: Store[T]): Promise<void> {
     await browser.storage.sync.set({ [key]:value });
+  }
+}
+
+const defaultTempStore: TempStore = { injectedTabs: [] } as const;
+
+export class TempStoreSerice {
+  static async get<T extends keyof TempStore>(key: T): Promise<TempStore[T]> {
+    const storage = await browser.storage.session.get(key);
+    const value = storage[key] ?? defaultTempStore[key];
+    console.log(`retrieved ${key}:`, value)
+    this.set(key, value);
+    return value;
+  }
+  static async set<T extends keyof TempStore>(key: T, value: TempStore[T]): Promise<void> {
+    await browser.storage.session.set({ [key]:value });
   }
 }
 
@@ -68,6 +143,16 @@ export class SaveTimeTypedMessage implements Message {
   }
   static isInstance(obj: any): boolean {
     return obj.action == 'saveTimeTyped' && typeof obj.timeTypedMS === 'number';
+  }
+}
+
+export class CheckForContentScriptExecutionMessage implements Message {
+  action: 'checkForContentScriptExecution';
+  constructor() {
+    this.action = 'checkForContentScriptExecution';
+  }
+  static isInstance(obj: any): boolean {
+    return obj.action == 'checkForContentScriptExecution';
   }
 }
 

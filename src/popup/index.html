@@ -49,23 +49,53 @@
   </form>
   <hr>
   <h1>settings</h1>
-  <form>
-    <h2>notifications</h2>
-    <div id="notifFrequencyButtons">
-      <button id="never" class="notifFrequencyButton hoverable">never</button>
-      <button id="quarterGoalCompletion" class="notifFrequencyButton hoverable">quarter goal completion</button>
-      <button id="halfGoalCompletion" class="notifFrequencyButton hoverable">half goal completion</button>
-      <button id="goalCompletion" class="notifFrequencyButton hoverable">goal completion</button>
-    </div>
-    <h2>popup toggle</h2>
-    <div>
-      <div id="popupToggleContainer" >
-        <p id="popupToggle" ></p>
-        <span>|</span>
-        <p><a id="editPopupToggleLink" >edit</a></p>
-      </div>
+  <h2>notifications</h2>
+  <form id="notifPreferenceForm">
+    <button class="radioButton hoverable" data-value="never">never</button>
+    <button class="radioButton hoverable" data-value="quarterGoalCompletion">quarter goal completion</button>
+    <button class="radioButton hoverable" data-value="halfGoalCompletion">half goal completion</button>
+    <button class="radioButton hoverable" data-value="goalCompletion">goal completion</button>
+  </form>
+  <h2>popup toggle</h2>
+  <div id="popupToggleContainer" >
+    <span id="popupToggle" ></span>
+    <span>|</span>
+    <span><a id="editPopupToggleLink" >edit</a></span>
+  </div>
+  <h2>automatic site tracking</h2>
+  <form id="siteTrackingPreferenceForm">
+    <button class="radioButton hoverable" data-value="off">off</button>
+    <button class="radioButton hoverable" data-value="on">on</button>
+  </form>
+  <h2>tracked sites</h2>
+      <!-- TODO make same color as rest of label -->
+  <form id="sitePatternInputForm">
+    <label id="sitePatternInputLabel" for="sitePatternInput">
+      site or
+      <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns">
+        match pattern
+      </a>
+    </label>
+    <!-- TODO add more explanations and add links between explanataions -->
+    <p class="settingDescription">hello how are you</p>
+    <div id="sitePatternTrackingInputs" class="threeToOneSplit">
+      <!-- 
+        Accepts a subset of the following patterns of URLs:
+        https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns 
+      -->
+      <!-- TODO make / for path at end optional, slap on / in onInput handler -->
+      <!-- TODO limit max length to 8000 -->
+      <input id="sitePatternInput" 
+             type="text" 
+             placeholder="https://monkeytype.com/"
+             required 
+             pattern="(https?|wss?)(:\/\/)((?:\*|(?:\*\.)?[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*(?::[0-9]+)?))(\/.*)"
+             />
+      <button id="trackSitePattern" class="hoverable"/>track</button>
     </div>
   </form>
+  <div id="trackedSitePatterns" >
+  </div>
 </body>
 
 </html>

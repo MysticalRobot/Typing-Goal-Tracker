@@ -43,10 +43,28 @@ const getTimingCallbacks = (): [() => void, () => void] => {
 }
 const [recordKeyPress, saveTimeTyped] = getTimingCallbacks();
 
-document.addEventListener('keypress', recordKeyPress);
+// "optional_host_permissions": ["<all_urls>"],
 
-// periodically save the time spent timing when the tab is active
-const fiveSecInMS = 5_000;
-const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMS);
-document.addEventListener('visibilitychange', intervalManager);
-intervalManager();
+function main() {
+  try {
+    document.removeEventListener('keypress', recordKeyPress);
+    console.debug('removed previous keypress listener');
+  } catch (error) {
+    console.debug('no previous keypress listener to remove');
+  }
+  document.addEventListener('keypress', recordKeyPress);
+
+  // periodically save the time spent timing when the tab is active
+  const fiveSecInMS = 5_000;
+  const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMS);
+  try {
+    document.removeEventListener('visibilitychange', intervalManager);
+    console.debug('removed previous visibilitychange listener');
+  } catch (error) {
+    console.debug('no previous visibilitychange listener to remove');
+  }
+  document.addEventListener('visibilitychange', intervalManager);
+  intervalManager();
+}
+
+main();

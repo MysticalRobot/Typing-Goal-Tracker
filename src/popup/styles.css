@@ -11,6 +11,7 @@
   --text-color: #d1d0c5;
   /* maybe use for invalid forms  */
   --error-color: #ca4754;
+  --border-radius: 0.5rem;
 }
 
 * {
@@ -42,11 +43,13 @@ label {
 
 h1 {
   font-size: 25px;
+  margin-bottom: 0.25rem;
 }
 
 h2 {
   font-weight: bold;
   font-size: 20px;
+  margin-bottom: 0.5rem;
 }
 
 label {
@@ -57,7 +60,6 @@ a {
   color: var(--text-color);
   text-decoration: underline;
   cursor: pointer;
-
   &:hover {
     color: var(--main-color);
   }
@@ -68,7 +70,6 @@ progress {
   width: 100%;
   height: 100%;
   background: none;
-
   &::-moz-progress-bar {
     background-color: var(--main-color);
   }
@@ -80,20 +81,21 @@ input {
   padding: 0.5rem;
   outline: none;
   border: none;
-
   &:focus,
   :active {
     outline: 2px solid var(--text-color);
   }
-
-  &:invalid {
+  &:user-invalid {
     background-color: var(--sub-alt-color);
     outline: 2px solid var(--error-color);
   }
-
   &[type="number"] {
     appearance: textfield;
     -moz-appearance: textfield;
+    &:invalid {
+      background-color: var(--sub-alt-color);
+      outline: 2px solid var(--error-color);
+    }
   }
 }
 
@@ -111,8 +113,9 @@ input {
   height: 1.75rem;
 }
 
-#notifFrequencyButtons {
+#notifPreferenceForm {
   display: grid;
+  height: calc(1.75 * 4)rem;
   grid-auto-rows: repeat(4, 1fr);
 }
 
@@ -137,7 +140,6 @@ input {
   height: 1.75rem;
   align-items: center;
   justify-content: space-evenly;
-
   :nth-child(n) {
     background: none;
   }
@@ -146,18 +148,63 @@ input {
 .hoverable {
   background-color: var(--sub-alt-color);
   color: var(--text-color);
-
   &:hover {
     background-color: var(--text-color);
     color: var(--bg-color);
   }
 }
 
-.notifFrequencyButton {
-  height: 1.75rem;
+#sitePatternInputLabel {
+  margin-bottom: 0.25rem;
 }
 
-.notifFrequencyButton[data-checked="true"] {
+#sitePatternInput {
+  margin-bottom: 0.5rem;
+}
+
+#trackSitePattern {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.threeToOneSplit {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  :first-child {
+    grid-column: 1 / 4;
+  }
+  :last-child {
+    grid-column: 4 / 5;
+  }
+}
+
+.trackedSitePattern {
+  background-color: var(--sub-alt-color);
+  height: 1.75rem;
+  align-items: center;
+  :first-child {
+    background: none;
+    text-align: center;
+  }
+  :last-child {
+    border-radius: 0rem var(--border-radius) var(--border-radius) 0rem;
+    &:hover {
+      background-color: var(--error-color);
+    }
+  }
+}
+
+#sitePatternTrackingInputs {
+  grid-column-gap: 0.25rem;
+}
+
+#siteTrackingPreferenceForm {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-column-gap: 0.25rem;
+}
+
+.radioButton[data-checked="true"] {
   background-color: var(--main-color);
   color: var(--bg-color);
 }

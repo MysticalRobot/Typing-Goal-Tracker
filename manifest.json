@@ -24,17 +24,14 @@
     "scripts": ["./dist/background-script.js"],
     "type": "module"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://monkeytype.com/"],
-      "js": ["./dist/content-script.js"],
-      "run_at": "document_end"
-    }
-  ],
   "permissions": [
-    "notifications",
-    "storage"
+    "storage",
+    "scripting",
+    "tabs",
+    "activeTab"
   ],
+  "optional_permissions": ["notifications"],
+  "optional_host_permissions": ["<all_urls>"],
   "commands": {
     "_execute_action": {
       "suggested_key": {
