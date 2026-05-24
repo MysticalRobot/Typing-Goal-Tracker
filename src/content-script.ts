@@ -1,6 +1,6 @@
 import { invariant, SaveTimeTypedMessage } from "./utils";
 
-function getIntervalManager(callback: () => void, timeout: number) {
+function getIntervalManager(callback: () => void, timeout: number): () => void {
   let interval: number | undefined = undefined
   return () => {
     if (document.hidden) {
@@ -11,9 +11,9 @@ function getIntervalManager(callback: () => void, timeout: number) {
   };
 }
 
-const oneSecInMS = 1_000;
-const timeout = 1_000;
-const getTimingCallbacks = (): [() => void, () => void] => {
+function getTimingCallbacks(): [() => void, () => void] {
+  const oneSecInMS = 1_000;
+  const timeout = 1_000;
   let total: number = 0;
   let start: number = 0;
   const recordKeyPress = () => { 
@@ -41,28 +41,13 @@ const getTimingCallbacks = (): [() => void, () => void] => {
   }
   return [recordKeyPress, saveTimeTyped]
 }
-const [recordKeyPress, saveTimeTyped] = getTimingCallbacks();
-
-// "optional_host_permissions": ["<all_urls>"],
 
 function main() {
-  try {
-    document.removeEventListener('keypress', recordKeyPress);
-    console.debug('removed previous keypress listener');
-  } catch (error) {
-    console.debug('no previous keypress listener to remove');
-  }
+  const [recordKeyPress, saveTimeTyped] = getTimingCallbacks();
   document.addEventListener('keypress', recordKeyPress);
-
   // periodically save the time spent timing when the tab is active
   const fiveSecInMS = 5_000;
   const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMS);
-  try {
-    document.removeEventListener('visibilitychange', intervalManager);
-    console.debug('removed previous visibilitychange listener');
-  } catch (error) {
-    console.debug('no previous visibilitychange listener to remove');
-  }
   document.addEventListener('visibilitychange', intervalManager);
   intervalManager();
 }

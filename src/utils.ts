@@ -84,6 +84,7 @@ export const defaultStore: Store = {
   dailyGoalsMin: [1, 1, 1, 1, 1, 1, 1], 
   notifPreference: 'quarterGoalCompletion',
   siteTrackingPreference: 'off',
+  reloadingPreference: 'off',
   trackedSitePatterns: [],
 } as const;
 export const dailyGoalsOrder = [
@@ -96,18 +97,27 @@ export const notifPermission: browser.permissions.Permissions = {
   permissions: ['notifications'] 
 } as const;
 export const siteTrackingPreferences = ['off', 'on'] as const;
+export const reloadingPreferences = ['off', 'on'] as const;
 
 // TODO replace with trackedSitePatterns
 export const siteTrackingPermission: browser.permissions.Permissions = { 
   origins: ['<all_urls>'] 
-  // origins: ['https://monkeytype.com/*', 'https://www.edclub.com/*'] 
 } as const;
+
+export function getSiteTrackingPermission(
+  trackedSitePatterns: string[]
+):  browser.permissions.Permissions {
+  return { 
+    // origins: ['<all_urls>'] 
+    origins: trackedSitePatterns 
+  };
+}
 
 export class StoreService {
   static async get<T extends keyof Store>(key: T): Promise<Store[T]> {
     const storage = await browser.storage.sync.get(key);
     const value = storage[key] ?? defaultStore[key];
-    console.log(`retrieved ${key}:`, value)
+    console.log(`retrieved ${key}:`, JSON.stringify(value))
     this.set(key, value);
     return value;
   }
@@ -121,11 +131,11 @@ export class StoreService {
 
 const defaultTempStore: TempStore = { injectedTabs: [] } as const;
 
-export class TempStoreSerice {
+export class TempStoreService {
   static async get<T extends keyof TempStore>(key: T): Promise<TempStore[T]> {
     const storage = await browser.storage.session.get(key);
     const value = storage[key] ?? defaultTempStore[key];
-    console.log(`retrieved ${key}:`, value)
+    console.log(`retrieved ${key}:`, JSON.stringify(value))
     this.set(key, value);
     return value;
   }

@@ -27,8 +27,7 @@
   "permissions": [
     "storage",
     "scripting",
-    "tabs",
-    "activeTab"
+    "tabs"
   ],
   "optional_permissions": ["notifications"],
   "optional_host_permissions": ["<all_urls>"],

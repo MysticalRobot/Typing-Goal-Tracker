@@ -1,7 +1,6 @@
 # Typing Goal Tracker 
 
-A tool that helps Monkeytype users reach their daily typing goals. This 
-project is not affiliated with Monkeytype.
+A tool that helps users reach their daily typing goals.
 
 ![Preview](assets/previews/preview.png "preview")
 

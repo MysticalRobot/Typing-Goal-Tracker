@@ -1,4 +1,4 @@
-import { invariant, getRatio, StoreService, getDailyGoalMin, matchedByURLPattern, matchesURLPattern, getTrackedSitePatternElement, notifPreferences, siteTrackingPreferences, dailyGoalsOrder, notifPermission, siteTrackingPermission, TempStoreSerice } from '../utils';
+import { invariant, getRatio, StoreService, getDailyGoalMin, matchedByURLPattern, matchesURLPattern, getTrackedSitePatternElement, notifPreferences, siteTrackingPreferences, dailyGoalsOrder, notifPermission, siteTrackingPermission, TempStoreService, getSiteTrackingPermission, reloadingPreferences } from '../utils';
 import { 
   type DailyGoalInputs, type DailyGoals, type NotifPreference, 
   type PreferenceOptions, 
@@ -123,7 +123,6 @@ function getTrackedSitePatterns(trackedSitePatterns: HTMLElement): string[] {
   });
 }
 
-// TODO request permission, fallback to shitty thing, add text explaining fallback
 function getSitePatternInputFormHandler(
   sitePatternInput: HTMLInputElement, trackedSitePatternsElement: HTMLElement
 ) {
@@ -150,14 +149,30 @@ function getSitePatternInputFormHandler(
     }
     try {
       // multiple shits can exist! (if in different windows)
-      const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
-      const injectedTabs = await TempStoreSerice.get('injectedTabs');
-      const newInjectedTabs = injectedTabs.filter(
-        ([_, url]) => !oof.some((pattern) => pattern.test(url))
-      );
-      console.dir(newInjectedTabs);
-      // TODO reload if desired
-      await TempStoreSerice.set('injectedTabs', newInjectedTabs);
+      
+      // const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
+      // const injectedTabs = await TempStoreSerice.get('injectedTabs');
+      // const newInjectedTabs = injectedTabs.filter(
+      //   ([_, url]) => !oof.some((pattern) => pattern.test(url))
+      // );
+      // console.dir(newInjectedTabs);
+      // await TempStoreSerice.set('injectedTabs', newInjectedTabs);
+      
+      // await browser.permissions.request({ origins: ['<all_urls>'] });
+      await browser.permissions.request({ origins: newTrackedSitePatterns });
+      
+      // TODO reload trackedButNotInjectedTabs
+      // const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
+      // const reloadingPreference = await StoreService.get('reloadingPreference');
+      // const injectedTabs = await TempStoreSerice.get('injectedTabs');
+      // if (siteTrackingPreference === 'on' && reloadingPreference === 'on') {
+      //   const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
+      //   const injectedButNotTrackedTabs = injectedTabs.filter(
+      //     ([_, url]) => !oof.some((pattern) => pattern.test(url))
+      //   );
+      //   console.log('reloading injected but not matching tabs');
+      //   await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
+      // }
       
     // TODO unset the preference and permission instead of TS
       // const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
@@ -175,13 +190,12 @@ function getSitePatternInputFormHandler(
       
     } catch (error) {
       console.dir(error);
-      // TODO permission not granted
+      // Permission not granted
       invariant(error instanceof Error);
       sitePatternInput.setCustomValidity(error.message);
       return;
       // TODO show error, but accept input, so that opening only on sites that
-      // are wanted 
-      // show permission status in frontend
+      // are wanted show permission status in frontend
     }
     await StoreService.set('trackedSitePatterns', newTrackedSitePatterns);
     // await browser.runtime.sendMessage(new CheckForContentScriptExecutionMessage())
@@ -214,27 +228,32 @@ async function trackedSitePatternsHandler(e: PointerEvent): Promise<void> {
   const div = e.target.parentElement;
   invariant(div instanceof HTMLDivElement);
   div.remove();
-  // TODO send message to reload page if no longer tracked
-  const activeTab = await browser.tabs.getCurrent();
-  if (activeTab?.id !== undefined) {
-    try {
-      await browser.tabs.reload(activeTab.id);
-    } catch (e) {
-      console.dir(e);
-    }
+  const res = await browser.permissions.remove(getSiteTrackingPermission([span.innerText]));
+  if (!res) {
+    return;
   }
+  await StoreService.set('trackedSitePatterns', newTrackedSitePatterns);
+  console.log('removed permission for', span.innerText);
+  const reloadingPreference = await StoreService.get('reloadingPreference');
+  if (reloadingPreference === 'on') {
+    const removedSitePattern = new URLPattern(span.innerText);
+    const injectedTabs = await TempStoreService.get('injectedTabs');
+    const injectedButNotTrackedTabs = injectedTabs.filter(([_, url]) => removedSitePattern.test(url));
+    console.log('reloading injected but not tracked tabs');
+    await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
+  }
+  // No need to remove from injection flag from temp store, that is handled by bg script
 }
 
 async function main() {
-  const trackedSitePatterns = (await StoreService.get('trackedSitePatterns')).map(
-    (pattern) => new URLPattern(pattern)
-  );
-  const injectedTabs = await TempStoreSerice.get('injectedTabs');
+  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
+  const injectedTabs = await TempStoreService.get('injectedTabs');
   const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (
     activeTab?.id !== undefined 
   && activeTab.url !== undefined
-  && trackedSitePatterns.some((pattern) => pattern.test(activeTab.url))
+  && trackedSitePatterns.map((pattern) => new URLPattern(pattern))
+  .some((pattern) => pattern.test(activeTab.url))
   && !injectedTabs.some(([id, _]) => activeTab.id === id)
   ) {
     await browser.scripting.executeScript({
@@ -242,30 +261,8 @@ async function main() {
       files: ['./content-script.js'],
     })
     const newInjectedTabs = injectedTabs.concat([[activeTab.id, activeTab.url]]);
-    await TempStoreSerice.set('injectedTabs', newInjectedTabs);
+    await TempStoreService.set('injectedTabs', newInjectedTabs);
   }
-
-  // // const activeTabs = [6];
-  // console.log(JSON.stringify(activeTabs));
-  // const shit = 
-  //   activeTabs
-  //   // doesn't have url -> doens't have activeTab permission or host permission
-  //   // .filter((tab) => tab.id !== undefined && tab.url !== undefined)
-  //   // TODO add filter for matching sites only
-  //   .filter((tab) => tab.id !== undefined)
-  //   .map((tab) => tab.id);
-  // console.log(JSON.stringify(shit));
-  // const promises = shit
-  //   // .slice(0, 1)
-  //   .map((tabId) => 
-  //        browser.scripting.executeScript({
-  //          target: { tabId, allFrames: true },
-  //          files: ['./content-script.js'],
-  //        })
-  //       );
-  // console.log(promises.length);
-  // const results = await Promise.all(promises);
-  // console.log(JSON.stringify(results));
 
   const dailyGoalsMin = await StoreService.get('dailyGoalsMin');
 
@@ -323,16 +320,71 @@ async function main() {
     getPreferenceHandler(
       'siteTrackingPreference',
       siteTrackingPreferences,
-      siteTrackingPermission,
-      undefined,
+      getSiteTrackingPermission(trackedSitePatterns),
       async () => {
-        // const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-        // if (trackedSitePatterns.length !== 0) {
-        //   await browser.scripting.registerContentScripts(
-        //     [getContentScriptRegistrationDetails(trackedSitePatterns)]
-        //   ); 
-        // }
-      }
+        const reloadingPreference = await StoreService.get('reloadingPreference');
+        if (reloadingPreference !== 'on') {
+          return;
+        }
+        const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
+        const injectedButNotTrackedTabs = injectedTabs.filter(
+          ([_, url]) => !oof.some((pattern) => pattern.test(url))
+        );
+        console.log('reloading injected but not matching tabs');
+        await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
+      },
+      // async () => {
+      //   const reloadingPreference = await StoreService.get('reloadingPreference');
+      //   if (reloadingPreference !== 'on') {
+      //     return;
+      //   }
+      //   const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
+      //   const tabs = await browser.tabs.query({});
+      //   // TODO maybe getting all tabs...
+      //   console.log(JSON.stringify(tabs));
+      //   const trackedButNotInjectedTabs = tabs.filter(
+      //     (tab) => tab.id !== undefined 
+      //     && tab.url !== undefined 
+      //     && !injectedTabs.some(([_, url]) => tab.url === url)
+      //     && oof.some((pattern) => pattern.test(tab.url))
+      //   );
+      //   console.log('reloading tracked but not injected tabs');
+      //   await Promise.all(trackedButNotInjectedTabs.map((tab) => browser.tabs.reload(tab.id)));
+      // }
+    )
+  );
+
+  const reloadingPreferenceForm = document.getElementById('reloadingPreferenceForm');
+  invariant(reloadingPreferenceForm instanceof HTMLFormElement);
+  await displayRadioButtons(
+    reloadingPreferenceForm, 'reloadingPreference', reloadingPreferences
+  );
+  reloadingPreferenceForm.addEventListener(
+    'click', 
+    getPreferenceHandler(
+      'reloadingPreference',
+      reloadingPreferences,
+      {},
+      undefined,
+      // async () => {
+      //   const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
+      //   if (siteTrackingPreference === 'off') {
+      //     return;
+      //   }
+      //   const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
+      //   // TODO not getting all tabs...
+      //   const tabs = await browser.tabs.query({});
+      //   console.log(JSON.stringify(tabs));
+      //   const trackedButNotInjectedTabs = tabs.filter(
+      //     (tab) => tab.id !== undefined 
+      //     && tab.url !== undefined 
+      //     && !injectedTabs.some(([_, url]) => tab.url === url)
+      //     && oof.some((pattern) => pattern.test(tab.url))
+      //   );
+      //   console.log('reloading tracked but not injected tabs');
+      //   console.log(JSON.stringify(trackedButNotInjectedTabs));
+      //   await Promise.all(trackedButNotInjectedTabs.map((tab) => browser.tabs.reload(tab.id)));
+      // }
     )
   );
 

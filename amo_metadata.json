@@ -23,7 +23,7 @@
   "requires_payment": false,
   "slug": "typing-goal-tracker", 
   "summary": { 
-    "en-US": "A tool that helps Monkeytype users reach their daily typing goals." 
+    "en-US": "A tool that helps users reach their daily typing goals." 
   },  
   "version": {
     "license": "MIT"
