@@ -1,10 +1,9 @@
-import { invariant, getRatio, StoreService, getDailyGoalMin, matchedByURLPattern, matchesURLPattern, getTrackedSitePatternElement, notifPreferences, siteTrackingPreferences, dailyGoalsOrder, notifPermission, siteTrackingPermission, TempStoreService, getSiteTrackingPermission, reloadingPreferences } from '../utils';
+import { invariant, getRatio, StoreService, getDailyGoalMin, matchedByURLPattern, matchesURLPattern, getTrackedSitePatternElement, notifPreferences, dailyGoalsOrder, notifPermission, TempStoreService, getSiteTrackingPermission, reloadingPreferences } from '../utils';
 import { 
-  type DailyGoalInputs, type DailyGoals, type NotifPreference, 
+  type DailyGoalInputs, 
+  type DailyGoals,
   type PreferenceOptions, 
-  type SiteTrackingPreference, 
   type Store,
-  type TabInfo
 } from '../types';
 
 async function displayProgress(
@@ -139,48 +138,45 @@ function getSitePatternInputFormHandler(
     const isNewSitePatternTracked = newTrackedSitePatterns.some(
       (trackedPattern) => matchesURLPattern(trackedPattern)(newPattern)
     );
-    const isChangeInTrackedSitePatterns = !isNewSitePatternTracked ||
-      trackedSitePatterns.length !== newTrackedSitePatterns.length
     if (!isNewSitePatternTracked) {
       newTrackedSitePatterns.push(newPattern);
     }
+    const isChangeInTrackedSitePatterns = !isNewSitePatternTracked ||
+      trackedSitePatterns.length !== newTrackedSitePatterns.length
     if (!isChangeInTrackedSitePatterns) {
       return;
     }
     try {
-      // multiple shits can exist! (if in different windows)
-      
-      // const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
-      // const injectedTabs = await TempStoreSerice.get('injectedTabs');
-      // const newInjectedTabs = injectedTabs.filter(
-      //   ([_, url]) => !oof.some((pattern) => pattern.test(url))
-      // );
-      // console.dir(newInjectedTabs);
-      // await TempStoreSerice.set('injectedTabs', newInjectedTabs);
-      
-      // await browser.permissions.request({ origins: ['<all_urls>'] });
       await browser.permissions.request({ origins: newTrackedSitePatterns });
-      
-      // TODO reload trackedButNotInjectedTabs
-      // const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
-      // const reloadingPreference = await StoreService.get('reloadingPreference');
-      // const injectedTabs = await TempStoreSerice.get('injectedTabs');
-      // if (siteTrackingPreference === 'on' && reloadingPreference === 'on') {
-      //   const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
-      //   const injectedButNotTrackedTabs = injectedTabs.filter(
-      //     ([_, url]) => !oof.some((pattern) => pattern.test(url))
-      //   );
-      //   console.log('reloading injected but not matching tabs');
-      //   await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
-      // }
-      
-    // TODO unset the preference and permission instead of TS
-      // const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
-      // if (siteTrackingPreference === 'on' && newTrackedSitePatterns.length !== 0) {
+
+      const oof = newTrackedSitePatterns.map((pattern) => new URLPattern(pattern));
+      const injectedTabs = await TempStoreService.get('injectedTabs');
+      const tabs = await browser.tabs.query({ url: newPattern });
+      const trackedButNotInjectedTabs = tabs.filter(
+        (tab) => 
+        tab.id !== undefined 
+        && tab.url !== undefined
+        && oof.some((pattern) => pattern.test(tab.url))
+        && !injectedTabs.some(([id, _]) => tab.id === id)
+      ); 
+      const scriptInjections = trackedButNotInjectedTabs.map(
+        (tab) =>
+        browser.scripting.executeScript({
+          // Tabs with undefined ids are filtered out above
+          target: { tabId: tab.id!, allFrames: false },
+          files: ['./content-script.js'],
+        })
+      );
+      await Promise.all(scriptInjections);
+      const newInjectedTabs = injectedTabs.concat(trackedButNotInjectedTabs.map((tab) => [tab.id, tab.url]));
+      console.log('injected shits into', JSON.stringify(trackedButNotInjectedTabs));
+      await TempStoreService.set('injectedTabs', newInjectedTabs);
+
+      // if (ewTrackedSitePatterns.length !== 0) {
       //   await browser.scripting.updateContentScripts(
       //     [getContentScriptRegistrationDetails(newTrackedSitePatterns)]
       //   ); 
-      // } else if (siteTrackingPreference === 'on') {
+      // } else {
       //   await browser.scripting.registerContentScripts(
       //     [getContentScriptRegistrationDetails(newTrackedSitePatterns)]
       //   ); 
@@ -190,7 +186,6 @@ function getSitePatternInputFormHandler(
       
     } catch (error) {
       console.dir(error);
-      // Permission not granted
       invariant(error instanceof Error);
       sitePatternInput.setCustomValidity(error.message);
       return;
@@ -198,7 +193,6 @@ function getSitePatternInputFormHandler(
       // are wanted show permission status in frontend
     }
     await StoreService.set('trackedSitePatterns', newTrackedSitePatterns);
-    // await browser.runtime.sendMessage(new CheckForContentScriptExecutionMessage())
     location.reload();
   };
 }
@@ -246,24 +240,6 @@ async function trackedSitePatternsHandler(e: PointerEvent): Promise<void> {
 }
 
 async function main() {
-  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-  const injectedTabs = await TempStoreService.get('injectedTabs');
-  const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (
-    activeTab?.id !== undefined 
-  && activeTab.url !== undefined
-  && trackedSitePatterns.map((pattern) => new URLPattern(pattern))
-  .some((pattern) => pattern.test(activeTab.url))
-  && !injectedTabs.some(([id, _]) => activeTab.id === id)
-  ) {
-    await browser.scripting.executeScript({
-      target: { tabId: activeTab.id, allFrames: false },
-      files: ['./content-script.js'],
-    })
-    const newInjectedTabs = injectedTabs.concat([[activeTab.id, activeTab.url]]);
-    await TempStoreService.set('injectedTabs', newInjectedTabs);
-  }
-
   const dailyGoalsMin = await StoreService.get('dailyGoalsMin');
 
   const progressBar = document.getElementById('progressBar');
@@ -307,53 +283,7 @@ async function main() {
   // IGNORE
     browser.commands.openShortcutSettings();
   });
-
-  const siteTrackingPreferenceForm = document.getElementById(
-    'siteTrackingPreferenceForm'
-  );
-  invariant(siteTrackingPreferenceForm instanceof HTMLFormElement);
-  await displayRadioButtons(
-    siteTrackingPreferenceForm, 'siteTrackingPreference', siteTrackingPreferences 
-  );
-  siteTrackingPreferenceForm.addEventListener(
-    'click', 
-    getPreferenceHandler(
-      'siteTrackingPreference',
-      siteTrackingPreferences,
-      getSiteTrackingPermission(trackedSitePatterns),
-      async () => {
-        const reloadingPreference = await StoreService.get('reloadingPreference');
-        if (reloadingPreference !== 'on') {
-          return;
-        }
-        const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
-        const injectedButNotTrackedTabs = injectedTabs.filter(
-          ([_, url]) => !oof.some((pattern) => pattern.test(url))
-        );
-        console.log('reloading injected but not matching tabs');
-        await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
-      },
-      // async () => {
-      //   const reloadingPreference = await StoreService.get('reloadingPreference');
-      //   if (reloadingPreference !== 'on') {
-      //     return;
-      //   }
-      //   const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
-      //   const tabs = await browser.tabs.query({});
-      //   // TODO maybe getting all tabs...
-      //   console.log(JSON.stringify(tabs));
-      //   const trackedButNotInjectedTabs = tabs.filter(
-      //     (tab) => tab.id !== undefined 
-      //     && tab.url !== undefined 
-      //     && !injectedTabs.some(([_, url]) => tab.url === url)
-      //     && oof.some((pattern) => pattern.test(tab.url))
-      //   );
-      //   console.log('reloading tracked but not injected tabs');
-      //   await Promise.all(trackedButNotInjectedTabs.map((tab) => browser.tabs.reload(tab.id)));
-      // }
-    )
-  );
-
+ 
   const reloadingPreferenceForm = document.getElementById('reloadingPreferenceForm');
   invariant(reloadingPreferenceForm instanceof HTMLFormElement);
   await displayRadioButtons(
@@ -361,31 +291,7 @@ async function main() {
   );
   reloadingPreferenceForm.addEventListener(
     'click', 
-    getPreferenceHandler(
-      'reloadingPreference',
-      reloadingPreferences,
-      {},
-      undefined,
-      // async () => {
-      //   const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
-      //   if (siteTrackingPreference === 'off') {
-      //     return;
-      //   }
-      //   const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
-      //   // TODO not getting all tabs...
-      //   const tabs = await browser.tabs.query({});
-      //   console.log(JSON.stringify(tabs));
-      //   const trackedButNotInjectedTabs = tabs.filter(
-      //     (tab) => tab.id !== undefined 
-      //     && tab.url !== undefined 
-      //     && !injectedTabs.some(([_, url]) => tab.url === url)
-      //     && oof.some((pattern) => pattern.test(tab.url))
-      //   );
-      //   console.log('reloading tracked but not injected tabs');
-      //   console.log(JSON.stringify(trackedButNotInjectedTabs));
-      //   await Promise.all(trackedButNotInjectedTabs.map((tab) => browser.tabs.reload(tab.id)));
-      // }
-    )
+    getPreferenceHandler('reloadingPreference', reloadingPreferences, {})
   );
 
   const trackedSitePatternsElement = document.getElementById('trackedSitePatterns');

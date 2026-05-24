@@ -82,8 +82,7 @@ export const defaultStore: Store = {
   timeTypedDate: getSerializedDate(new Date()),
   // TODO revert to 0s
   dailyGoalsMin: [1, 1, 1, 1, 1, 1, 1], 
-  notifPreference: 'quarterGoalCompletion',
-  siteTrackingPreference: 'off',
+  notifPreference: 'never',
   reloadingPreference: 'off',
   trackedSitePatterns: [],
 } as const;
@@ -96,13 +95,7 @@ export const notifPreferences = [
 export const notifPermission: browser.permissions.Permissions = { 
   permissions: ['notifications'] 
 } as const;
-export const siteTrackingPreferences = ['off', 'on'] as const;
 export const reloadingPreferences = ['off', 'on'] as const;
-
-// TODO replace with trackedSitePatterns
-export const siteTrackingPermission: browser.permissions.Permissions = { 
-  origins: ['<all_urls>'] 
-} as const;
 
 export function getSiteTrackingPermission(
   trackedSitePatterns: string[]

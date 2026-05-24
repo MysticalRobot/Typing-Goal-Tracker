@@ -198,12 +198,6 @@ input {
   grid-column-gap: 0.25rem;
 }
 
-#siteTrackingPreferenceForm {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-column-gap: 0.25rem;
-}
-
 #reloadingPreferenceForm {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

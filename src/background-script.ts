@@ -94,7 +94,6 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     return;
   }
   console.log('navigated to:', changeInfo.url);
-  const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
   const trackedSitePatterns = (await StoreService.get('trackedSitePatterns'))
   .map((pattern) => new URLPattern(pattern));
   const injectedTabs = await TempStoreService.get('injectedTabs');
@@ -113,7 +112,7 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     const newInjectedTabs = injectedTabs.filter((_, i) => i !== injectedTabIndex);
     console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  } else if (isNewSiteTracked && siteTrackingPreference === 'on' && changeInfo.status === 'loading') {
+  } else if (isNewSiteTracked && changeInfo.status === 'loading') {
     const newInjectedTabs = injectedTabs.concat([[tabId, changeInfo.url]]);
     console.log('injecting script and adding TabInfo', JSON.stringify(newInjectedTabs));
     const details = await browser.scripting.executeScript({
@@ -163,10 +162,6 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
 // TODO add temp store service maybe 
 browser.runtime.onInstalled.addListener(async () => {
   await Promise.all(Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value)));
-  const siteTrackingPreference = await StoreService.get('siteTrackingPreference');
-  if (siteTrackingPreference === 'off') {
-    return;
-  }
   const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
   try {
     if (trackedSitePatterns.length !== 0) {

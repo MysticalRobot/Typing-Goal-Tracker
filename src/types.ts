@@ -1,4 +1,4 @@
-import { notifPreferences, siteTrackingPreferences, reloadingPreferences } from "./utils";
+import { notifPreferences, reloadingPreferences } from "./utils";
 
 export type DailyGoalInputs = [
   HTMLInputElement, HTMLInputElement, HTMLInputElement, HTMLInputElement, 
@@ -6,7 +6,6 @@ export type DailyGoalInputs = [
 ]
 export type DailyGoals = [number, number, number, number, number, number, number];
 export type NotifPreference = typeof notifPreferences[number];
-export type SiteTrackingPreference = typeof siteTrackingPreferences[number];
 export type ReloadingPreference = typeof reloadingPreferences[number];
 export type SerializedDate = string;
 
@@ -15,7 +14,6 @@ export interface Store {
   timeTypedDate: SerializedDate;
   dailyGoalsMin: DailyGoals;
   notifPreference: NotifPreference;
-  siteTrackingPreference: SiteTrackingPreference;
   reloadingPreference: ReloadingPreference;
   trackedSitePatterns: string[];
 };

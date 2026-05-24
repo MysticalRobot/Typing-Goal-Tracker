@@ -1,3 +1,4 @@
+1. 
 2. better explanations
     - will need to update app for .children shits
 3. better error msgs
