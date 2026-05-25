@@ -1,4 +1,15 @@
-import { invariant, getRatio, sameDay, getSerializedDate, getDate, StoreService, getDailyGoalMin, SaveTimeTypedMessage, defaultStore, TempStoreService } from './utils';
+import { 
+  invariant, 
+  getRatio, 
+  sameDay, 
+  getSerializedDate, 
+  getDate, 
+  StoreService, 
+  getDailyGoalMin, 
+  SaveTimeTypedMessage, 
+  defaultStore, 
+  TempStoreService 
+} from './utils';
 import { type NotifPreference } from './types';
 
 async function getNotifText(
@@ -75,14 +86,8 @@ async function saveTimeTypedAndNotifyUser(timeTypedMS: number) {
 }
 
 // Respond to messages from the content scripts
-browser.runtime.onMessage.addListener(async (message, sender) => {
-  const injectedTabs = await TempStoreService.get('injectedTabs');
-  // A message might come from a tab that was originally on a tracked site (e.g. 
-  // https://monkeytype.com/ -> https://monkeytype.com/settings) if the tab didn't reload.
-  // In this case, the tab won't be registered as injected, but it will still be, so
-  // its messages needs to be rejected.
-  const isSiteTracked = injectedTabs.some(([id, _]) => id == sender.tab?.id);
-  if (isSiteTracked && SaveTimeTypedMessage.isInstance(message)) {
+browser.runtime.onMessage.addListener(async (message) => {
+  if (SaveTimeTypedMessage.isInstance(message)) {
       invariant(message.timeTypedMS > 0);
       await saveTimeTypedAndNotifyUser(message.timeTypedMS);
   }
@@ -107,12 +112,13 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     .concat([[tabId, changeInfo.url]]);
     console.log('updating url in TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  } else if (wasInjectedTab) {
-    // TODO need to reload
+  } else if (wasInjectedTab && changeInfo.status === 'loading') {
     const newInjectedTabs = injectedTabs.filter((_, i) => i !== injectedTabIndex);
     console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  } else if (isNewSiteTracked && changeInfo.status === 'loading') {
+  } else if (wasInjectedTab && changeInfo.status === 'complete') {
+    await browser.tabs.reload(tabId);
+  } else if (isNewSiteTracked) {
     const newInjectedTabs = injectedTabs.concat([[tabId, changeInfo.url]]);
     console.log('injecting script and adding TabInfo', JSON.stringify(newInjectedTabs));
     const details = await browser.scripting.executeScript({
@@ -121,55 +127,26 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     })
     console.log(JSON.stringify(details));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  } else if (isNewSiteTracked && changeInfo.status === 'complete') {
-    const newInjectedTabs = injectedTabs.concat([[tabId, changeInfo.url]]);
-    console.log('adding TabInfo', JSON.stringify(newInjectedTabs));
-    await TempStoreService.set('injectedTabs', newInjectedTabs);
-  }
-});
-
-// TODO on activated listener
-// for automatic tracking
-browser.tabs.onActivated.addListener(async (activeInfo) => {
-  const reloadingPreference = await StoreService.get('reloadingPreference');
-  if (reloadingPreference !== 'on') {
-    return;
-  }
-  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-  const injectedTabs = await TempStoreService.get('injectedTabs');
-  const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
-  // TODO maybe getting all tabs...
-  const tab = await browser.tabs.get(activeInfo.tabId);
-  console.log(JSON.stringify(tab));
-  const isTrackedButNotInjected = tab.id !== undefined 
-    && tab.url !== undefined 
-    && !injectedTabs.some(([id, _]) => tab.id === id)
-    && oof.some((pattern) => pattern.test(tab.url));
-  if (isTrackedButNotInjected) {
-    console.log('reloading tracked but not injected tabs');
-    await browser.tabs.reload(tab.id);
   }
 });
 
 browser.tabs.onRemoved.addListener(async (tabId) => {
-  // TODO reload if desired
   const injectedTabs = await TempStoreService.get('injectedTabs');
   const newInjectedTabs = injectedTabs.filter(([id, _]) => id !== tabId);
   console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
   await TempStoreService.set('injectedTabs', newInjectedTabs);
 });
 
-// TODO add temp store service maybe 
 browser.runtime.onInstalled.addListener(async () => {
   await Promise.all(Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value)));
-  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-  try {
-    if (trackedSitePatterns.length !== 0) {
-      // await browser.scripting.registerContentScripts(
-      //   [getContentScriptRegistrationDetails(trackedSitePatterns)]
-      // )
-    } 
-  } catch (error) {
-    console.dir(error);
-  }
+  // const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
+  // try {
+  //   if (trackedSitePatterns.length !== 0) {
+  //     await browser.scripting.registerContentScripts(
+  //       [getContentScriptRegistrationDetails(trackedSitePatterns)]
+  //     )
+  //   } 
+  // } catch (error) {
+  //   console.dir(error);
+  // }
 });

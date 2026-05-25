@@ -44,7 +44,9 @@ function getTimingCallbacks(): [() => void, () => void] {
 
 function main() {
   const [recordKeyPress, saveTimeTyped] = getTimingCallbacks();
+
   document.addEventListener('keypress', recordKeyPress);
+
   // periodically save the time spent timing when the tab is active
   const fiveSecInMS = 5_000;
   const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMS);

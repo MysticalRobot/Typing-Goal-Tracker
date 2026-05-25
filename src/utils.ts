@@ -149,16 +149,6 @@ export class SaveTimeTypedMessage implements Message {
   }
 }
 
-export class CheckForContentScriptExecutionMessage implements Message {
-  action: 'checkForContentScriptExecution';
-  constructor() {
-    this.action = 'checkForContentScriptExecution';
-  }
-  static isInstance(obj: any): boolean {
-    return obj.action == 'checkForContentScriptExecution';
-  }
-}
-
 export async function getDailyGoalMin(dailyGoalsMin: DailyGoals): Promise<number> {
   invariant(dailyGoalsMin.length === 7);
   const timeTypedDate = await StoreService.get('timeTypedDate');
