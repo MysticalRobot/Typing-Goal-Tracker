@@ -279,7 +279,47 @@ async function main() {
   );
   reloadingPreferenceForm.addEventListener(
     'click', 
-    getPreferenceHandler('reloadingPreference', reloadingPreferences, {})
+    getPreferenceHandler(
+      'reloadingPreference', 
+      reloadingPreferences, 
+      {},
+      undefined,
+      // TODO TS doesn't always work first try 
+      async () => {
+        try {
+          const trackedSitePatterns = (await StoreService.get('trackedSitePatterns'))
+          .map((pattern) => new URLPattern(pattern));
+          const injectedTabs = await TempStoreService.get('injectedTabs');
+          console.log('heelo');
+          const tabs = await browser.tabs.query({});
+          console.log('heloooooo');
+          console.log(JSON.stringify(tabs));
+          const trackedButNotInjectedTabs = tabs.filter(
+            (tab) => 
+            tab.id !== undefined 
+            && tab.url !== undefined
+            && trackedSitePatterns.some((pattern) => pattern.test(tab.url))
+            && !injectedTabs.some(([id, _]) => tab.id === id)
+          ).map((tab) => [tab.id, tab.url]);
+          console.log('reloading tracked tabs to execute script', JSON.stringify(trackedButNotInjectedTabs));
+          const injectedButNotTrackedTabs = tabs.filter(
+            (tab) => 
+            tab.id !== undefined 
+            && tab.url !== undefined
+            && !trackedSitePatterns.some((pattern) => pattern.test(tab.url))
+            && injectedTabs.some(([id, _]) => tab.id === id)
+          ).map((tab) => [tab.id, tab.url]);
+          console.log('reloading injected tabs to stop script', JSON.stringify(injectedButNotTrackedTabs));
+          await Promise.all(
+            trackedButNotInjectedTabs
+            .concat(injectedButNotTrackedTabs)
+            .map(([id, _]) => browser.tabs.reload(id))
+          );
+        } catch (error) {
+          console.log(error);
+        }
+      }
+    )
   );
 
   const trackedSitePatternsElement = document.getElementById('trackedSitePatterns');

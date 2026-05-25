@@ -140,6 +140,12 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
   await TempStoreService.set('injectedTabs', newInjectedTabs);
 });
 
+// TODO check TempPermission, set to undefined after done; 
+// drop onPermission(Removed/Granted); 
+// set store values so double tap isn't required
+// browser.permissions.onAdded
+// browser.permissions.onRemoved
+
 browser.runtime.onInstalled.addListener(async () => {
   await Promise.all(Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value)));
 });

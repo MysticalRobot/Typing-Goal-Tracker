@@ -1,4 +1,4 @@
-1. 
+1. move permisson granted/remove -> bg script (so double input isn't required)
 2. better explanations
     - will need to update app for .children shits
 3. better error msgs
