@@ -86,8 +86,10 @@ async function saveTimeTypedAndNotifyUser(timeTypedMS: number) {
 }
 
 // Respond to messages from the content scripts
-browser.runtime.onMessage.addListener(async (message) => {
-  if (SaveTimeTypedMessage.isInstance(message)) {
+browser.runtime.onMessage.addListener(async (message, sender) => {
+  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
+  const isTabTracked = trackedSitePatterns.some((pattern) => new URLPattern(pattern).test(sender.tab?.url));
+  if (isTabTracked && SaveTimeTypedMessage.isInstance(message)) {
       invariant(message.timeTypedMS > 0);
       await saveTimeTypedAndNotifyUser(message.timeTypedMS);
   }
@@ -116,9 +118,10 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     const newInjectedTabs = injectedTabs.filter((_, i) => i !== injectedTabIndex);
     console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  } else if (wasInjectedTab && changeInfo.status === 'complete') {
-    await browser.tabs.reload(tabId);
-  } else if (isNewSiteTracked) {
+  // } else if (wasInjectedTab && changeInfo.status === 'complete') {
+  //   await browser.tabs.reload(tabId);
+  // } else if (isNewSiteTracked) {
+  } else if (!wasInjectedTab && isNewSiteTracked) {
     const newInjectedTabs = injectedTabs.concat([[tabId, changeInfo.url]]);
     console.log('injecting script and adding TabInfo', JSON.stringify(newInjectedTabs));
     const details = await browser.scripting.executeScript({
@@ -139,14 +142,4 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
 
 browser.runtime.onInstalled.addListener(async () => {
   await Promise.all(Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value)));
-  // const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-  // try {
-  //   if (trackedSitePatterns.length !== 0) {
-  //     await browser.scripting.registerContentScripts(
-  //       [getContentScriptRegistrationDetails(trackedSitePatterns)]
-  //     )
-  //   } 
-  // } catch (error) {
-  //   console.dir(error);
-  // }
 });

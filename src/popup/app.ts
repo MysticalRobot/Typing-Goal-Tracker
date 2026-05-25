@@ -172,18 +172,6 @@ function getSitePatternInputFormHandler(
       console.log('injected shits into', JSON.stringify(trackedButNotInjectedTabs));
       await TempStoreService.set('injectedTabs', newInjectedTabs);
 
-      // if (ewTrackedSitePatterns.length !== 0) {
-      //   await browser.scripting.updateContentScripts(
-      //     [getContentScriptRegistrationDetails(newTrackedSitePatterns)]
-      //   ); 
-      // } else {
-      //   await browser.scripting.registerContentScripts(
-      //     [getContentScriptRegistrationDetails(newTrackedSitePatterns)]
-      //   ); 
-      // }
-      // const rcs = await browser.scripting.getRegisteredContentScripts();
-      // console.dir(rcs);
-      
     } catch (error) {
       console.dir(error);
       invariant(error instanceof Error);
