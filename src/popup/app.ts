@@ -81,14 +81,14 @@ async function notifPreferenceFormHandler(e: PointerEvent): Promise<void> {
   invariant(valueIndex !== -1);
   const isRemovingPermission = value === 'never';
   if (isRemovingPermission) {
-    console.log('removing permission');
+    console.log('removing permission:', JSON.stringify(notifPermission));
     await Promise.all([
       // If permission does not exist, then does nothing and succeeds 
       browser.permissions.remove(notifPermission),
       StoreService.set('notifPreference', value)
     ]);
   } else {
-    console.log('requesting permission');
+    console.log('requesting permission:', JSON.stringify(notifPermission));
     // `Promise.all` preserves the condition: 
     // 'permissions.request may only be called from a user input handler' 
     const [_, __, isPermissionGranted] = await Promise.all([
@@ -178,13 +178,13 @@ function getSitePatternInputFormHandler(
       if (!isPermissionGranted) {
         throw new Error('Failed to get permission');
       }
-      await Promise.all([
+      return Promise.all([
         TempStoreService.set('trackedSitePatterns', []),
         StoreService.set('trackedSitePatterns', newTrackedSitePatterns),
         browser.runtime.sendMessage(new InjectTrackedButNotInjectedTabsMessage())
       ]);
     } catch (error) {
-      console.dir(error);
+      console.error(error);
       invariant(error instanceof Error);
       sitePatternInput.setCustomValidity(error.message);
       // TODO show error, but accept input, so that opening only on sites that
@@ -226,11 +226,15 @@ async function trackedSitePatternsHandler(e: PointerEvent): Promise<void> {
   if (!res) {
     return;
   }
-  console.log('removed permission for', span.innerText);
+  // TODO possibly send for reloading
+  console.log('removed permission for:', span.innerText);
   if (reloadingPreference === 'on') {
     const removedSitePattern = new URLPattern(span.innerText);
     const injectedButNotTrackedTabs = injectedTabs.filter(([_, url]) => removedSitePattern.test(url));
-    console.log('reloading injected but not tracked tabs');
+    console.log(
+      'reloading injected but not tracked tabs:',
+      JSON.stringify(injectedButNotTrackedTabs)
+    );
     await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
   }
   location.reload();
