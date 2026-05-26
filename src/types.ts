@@ -15,15 +15,18 @@ export interface Store {
   dailyGoalsMin: DailyGoals;
   notifPreference: NotifPreference;
   reloadingPreference: ReloadingPreference;
+  // TODO rename to trackedSites
   trackedSitePatterns: string[];
 };
 
-export type TabId = number;
+export type Id = number;
 export type URL = string
-export type TabInfo = [TabId, URL];
+export type TabInfo = [Id, URL];
 
 export interface TempStore {
-  injectedTabs: TabInfo[]
+  injectedTabs: TabInfo[];
+  notifPreference: NotifPreference | null;
+  trackedSitePatterns: string[];
 };
 
 export type PreferenceOptions<T extends keyof Store> = 
@@ -32,3 +35,4 @@ export type PreferenceOptions<T extends keyof Store> =
 export interface Message {
   readonly action: string;
 }
+

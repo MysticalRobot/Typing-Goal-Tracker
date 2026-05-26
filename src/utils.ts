@@ -4,6 +4,7 @@ import {
   type Message,
   type SerializedDate,
   type TempStore,
+  type NotifPreference,
 } from './types.ts';
 
 export function invariant(cond: any, msg?: string): asserts cond {
@@ -16,6 +17,48 @@ export function getRatio(timeMS: number, totalTimeMin: number): number {
   invariant(totalTimeMin > 0);
   const oneMinInMs = 60_000;
   return timeMS / (totalTimeMin * oneMinInMs);
+}
+
+export function getNotifText(
+  notifPreference: NotifPreference, 
+  dailyGoalMin: number, 
+  prevTimeTypedMS: number, 
+  currTimeTypedMS: number
+): null | [string, string] {
+  invariant(
+    dailyGoalMin > 0 && 0 <= prevTimeTypedMS && prevTimeTypedMS < currTimeTypedMS 
+  );
+  // TODO maybe move the ratios out, create another func for updating the icon based on progress
+  const prevProgressRatio = getRatio(prevTimeTypedMS, dailyGoalMin);
+  const currProgressRatio = getRatio(currTimeTypedMS, dailyGoalMin);
+
+  if (notifPreference === 'quarterGoalCompletion'
+    && prevProgressRatio < 0.25 && 0.25 <= currProgressRatio) {
+    return ['one quarter goal complete', 'the hardest part is over, keep it up!'];
+
+  } else if (notifPreference === 'quarterGoalCompletion'
+    && prevProgressRatio < 0.75 && 0.75 <= currProgressRatio) {
+    return ['three quarters goal complete', 'can you finish the j*b?'];
+
+  } else if ((notifPreference === 'quarterGoalCompletion'
+    || notifPreference === 'halfGoalCompletion')
+    && prevProgressRatio < 0.5 && 0.5 <= currProgressRatio) {
+    return ['half goal complete', 'round 2, fight!'];
+
+  } else if (prevProgressRatio < 1.0 && 1.0 <= currProgressRatio) {
+    return ['goal complete', 'absolute cinema'];
+  }
+
+  return null;
+}
+
+export function sendNotif(title: string, message: string): Promise<string> {
+  return browser.notifications.create({
+    type: 'basic',
+    iconUrl: browser.runtime.getURL('./assets/icon.svg'),
+    title,
+    message,
+  });
 }
 
 export function sameDay(d1: Date, d2: Date): boolean {
@@ -35,7 +78,6 @@ export function getDate(d: SerializedDate): Date {
 }
 
 export function matchedByURLPattern(p1: string) {
-  // IGNORE
   const p1Pattern = new URLPattern(p1);
   return (p2: string): boolean => {
     return p1 === p2 || p1Pattern.test(p2);
@@ -44,7 +86,6 @@ export function matchedByURLPattern(p1: string) {
 
 export function matchesURLPattern(p1: string) {
   return (p2: string): boolean => {
-    // IGNORE
     return p1 === p2 || new URLPattern(p2).test(p1);
   };
 }
@@ -67,14 +108,14 @@ export function getTrackedSitePatternElement(
   return div;
 }
 
-export function getContentScriptRegistrationDetails(
-  trackedSitePatterns: string[]
-) {
-  return {
-    id: 'time-typed-counter',
-    js: ['./dist/content-script.js'],
-    matches: trackedSitePatterns,
-  }
+export function executeContentScript(
+  tabId: number, injectingScript: 'background' | 'popup'
+): Promise<browser.scripting.InjectionResult[]> {
+  const scriptRoot = injectingScript === 'background' ? './dist/' : './';
+  return browser.scripting.executeScript({
+    target: { tabId, allFrames: false },
+    files: [scriptRoot + 'content-script.js'],
+  })
 }
 
 export const defaultStore: Store = {
@@ -101,17 +142,14 @@ export function getSiteTrackingPermission(
   trackedSitePatterns: string[]
 ):  browser.permissions.Permissions {
   return { 
-    // origins: ['<all_urls>'] 
     origins: trackedSitePatterns 
   };
 }
 
 export class StoreService {
-  static async get<T extends keyof Store>(key: T): Promise<Store[T]> {
+  static async safeGet<T extends keyof Store>(key: T): Promise<Store[T]> {
     const storage = await browser.storage.sync.get(key);
     const value = storage[key] ?? defaultStore[key];
-    console.log(`retrieved ${key}:`, JSON.stringify(value))
-    this.set(key, value);
     return value;
   }
   // TODO reject if too much
@@ -122,16 +160,19 @@ export class StoreService {
   }
 }
 
-const defaultTempStore: TempStore = { injectedTabs: [] } as const;
+const defaultTempStore: TempStore = { 
+  injectedTabs: [], 
+  notifPreference: null, 
+  trackedSitePatterns: [],
+} as const;
 
 export class TempStoreService {
-  static async get<T extends keyof TempStore>(key: T): Promise<TempStore[T]> {
+  static async safeGet<T extends keyof TempStore>(key: T): Promise<TempStore[T]> {
     const storage = await browser.storage.session.get(key);
     const value = storage[key] ?? defaultTempStore[key];
-    console.log(`retrieved ${key}:`, JSON.stringify(value))
-    this.set(key, value);
     return value;
   }
+  // TODO reject if too much
   static async set<T extends keyof TempStore>(key: T, value: TempStore[T]): Promise<void> {
     await browser.storage.session.set({ [key]:value });
   }
@@ -149,9 +190,29 @@ export class SaveTimeTypedMessage implements Message {
   }
 }
 
+export class InjectTrackedButNotInjectedTabsMessage implements Message {
+  action: 'injectTrackedButNotInjectedTabs';
+  constructor() {
+    this.action = 'injectTrackedButNotInjectedTabs';
+  }
+  static isInstance(obj: any): boolean {
+    return obj.action == 'injectTrackedButNotInjectedTabs';
+  }
+}
+
+export class ReloadInjectedButNotTrackedTabsMessage implements Message {
+  action: 'reloadInjectedButNotTrackedTabs';
+  constructor() {
+    this.action = 'reloadInjectedButNotTrackedTabs';
+  }
+  static isInstance(obj: any): boolean {
+    return obj.action == 'reloadInjectedButNotTrackedTabs';
+  }
+}
+
 export async function getDailyGoalMin(dailyGoalsMin: DailyGoals): Promise<number> {
   invariant(dailyGoalsMin.length === 7);
-  const timeTypedDate = await StoreService.get('timeTypedDate');
+  const timeTypedDate = await StoreService.safeGet('timeTypedDate');
   const timeTypedDayOfWeek = new Date(timeTypedDate).getUTCDay();
   return dailyGoalsMin.at(timeTypedDayOfWeek)!;
 }

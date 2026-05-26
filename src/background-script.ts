@@ -1,6 +1,5 @@
 import { 
   invariant, 
-  getRatio, 
   sameDay, 
   getSerializedDate, 
   getDate, 
@@ -8,53 +7,19 @@ import {
   getDailyGoalMin, 
   SaveTimeTypedMessage, 
   defaultStore, 
-  TempStoreService 
+  TempStoreService, 
+  executeContentScript,
+  getNotifText,
+  sendNotif,
+  ReloadInjectedButNotTrackedTabsMessage,
+  InjectTrackedButNotInjectedTabsMessage
 } from './utils';
-import { type NotifPreference } from './types';
 
-async function getNotifText(
-  notifPreference: NotifPreference, 
-  dailyGoalMin: number, 
-  prevTimeTypedMS: number, 
-  currTimeTypedMS: number
-): Promise<null | [string, string]> {
-  invariant(
-    dailyGoalMin > 0 && 0 <= prevTimeTypedMS && prevTimeTypedMS < currTimeTypedMS 
-  );
-  // TODO maybe move the ratios out, create another func for 
-  // updating the icon based on progress
-  const prevProgressRatio = getRatio(prevTimeTypedMS, dailyGoalMin);
-  const currProgressRatio = getRatio(currTimeTypedMS, dailyGoalMin);
-  if (notifPreference === 'quarterGoalCompletion'
-    && prevProgressRatio < 0.25 && 0.25 <= currProgressRatio) {
-    return ['one quarter goal complete', 'the hardest part is over, keep it up!'];
-  } else if (notifPreference === 'quarterGoalCompletion'
-    && prevProgressRatio < 0.75 && 0.75 <= currProgressRatio) {
-    return ['three quarters goal complete', 'can you finish the j*b?'];
-  } else if ((notifPreference === 'quarterGoalCompletion'
-    || notifPreference === 'halfGoalCompletion')
-    && prevProgressRatio < 0.5 && 0.5 <= currProgressRatio) {
-    return ['half goal complete', 'round 2, fight!'];
-  } else if (prevProgressRatio < 1.0 && 1.0 <= currProgressRatio) {
-    return ['goal complete', 'absolute cinema'];
-  }
-  return null;
-}
-
-async function sendNotif(title: string, message: string): Promise<void> {
-  await browser.notifications.create({
-    type: 'basic',
-    iconUrl: browser.runtime.getURL('./assets/icon.svg'),
-    title,
-    message,
-  });
-}
-
-async function saveTimeTypedAndNotifyUser(timeTypedMS: number) {
+async function saveTimeTypedAndNotifyUser(timeTypedMS: number): Promise<void> {
   invariant(timeTypedMS > 0);
 
   // Invalidate old saved timeTypedMS
-  const prevTimeTypedDate = getDate(await StoreService.get('timeTypedDate'));
+  const prevTimeTypedDate = getDate(await StoreService.safeGet('timeTypedDate'));
   const todayDate = new Date();
   if (!sameDay(prevTimeTypedDate, todayDate)) {
     await StoreService.set('timeTypedDate', getSerializedDate(todayDate));
@@ -62,22 +27,22 @@ async function saveTimeTypedAndNotifyUser(timeTypedMS: number) {
   }
 
   // Save new timeTypedMS
-  const prevTimeTypedMS = await StoreService.get('timeTypedMS');
+  const prevTimeTypedMS = await StoreService.safeGet('timeTypedMS');
   const currTimeTypedMS = prevTimeTypedMS + timeTypedMS;
-  console.log(currTimeTypedMS / 1_000);
+  console.log('timeTypedS:', currTimeTypedMS / 1_000);
   await StoreService.set('timeTypedMS', currTimeTypedMS);
 
   // Notify user if goal checkpoint reached
-  const notifPreference = await StoreService.get('notifPreference');
+  const notifPreference = await StoreService.safeGet('notifPreference');
   if (notifPreference == 'never') {
     return;
   }
-  const dailyGoalsMin = await StoreService.get('dailyGoalsMin');
+  const dailyGoalsMin = await StoreService.safeGet('dailyGoalsMin');
   const dailyGoalMin = await getDailyGoalMin(dailyGoalsMin);
   if (dailyGoalMin === 0) {
     return;
   }
-  const notifText = await getNotifText(
+  const notifText = getNotifText(
     notifPreference, dailyGoalMin, prevTimeTypedMS, currTimeTypedMS
   );
   if (notifText !== null) {
@@ -85,13 +50,83 @@ async function saveTimeTypedAndNotifyUser(timeTypedMS: number) {
   }
 }
 
+async function injectTrackedButNotInjectedTabs(
+  trackedSitePatterns: URLPattern[], 
+): Promise<void> {
+  const injectedTabs = await TempStoreService.safeGet('injectedTabs');
+  const tabs = await browser.tabs.query({});
+  const validTabs = tabs.filter(
+    (tab) => tab.id !== undefined && tab.url !== undefined
+  );
+  console.log(
+    'valid tabs:', 
+    JSON.stringify(validTabs.map((tab) => [tab.id, tab.url]))
+  );
+  const trackedButNotInjectedTabs = validTabs.filter(
+    (tab) =>
+    trackedSitePatterns.some((pattern) => pattern.test(tab.url))
+    && !injectedTabs.some(([id, _]) => tab.id === id)
+  );
+  console.log(
+    'injecting tracked tabs:', 
+    JSON.stringify(trackedButNotInjectedTabs.map((tab) => [tab.id, tab.url]))
+  );
+  // Tabs with undefined ids and urls are filtered out above
+  const newInjectedTabs = injectedTabs.concat(
+    trackedButNotInjectedTabs.map((tab) => [tab.id!, tab.url!])
+  );
+  await Promise.all([
+    trackedButNotInjectedTabs.map(
+      (tab) => executeContentScript(tab.id!, 'background')
+    ),
+    TempStoreService.set('injectedTabs', newInjectedTabs)
+  ]);
+}
+
+async function reloadInjectedButNotTrackedTabs(
+  trackedSitePatterns: URLPattern[], 
+): Promise<void> {
+  const injectedTabs = await TempStoreService.safeGet('injectedTabs');
+  const tabs = await browser.tabs.query({});
+  const validTabs = tabs.filter(
+    (tab) => tab.id !== undefined && tab.url !== undefined
+  );
+  console.log(
+    'valid tabs:', 
+    JSON.stringify(validTabs.map((tab) => [tab.id, tab.url]))
+  );
+  const injectedButNotTrackedTabs = validTabs.filter(
+    (tab) =>
+    !trackedSitePatterns.some((pattern) => pattern.test(tab.url))
+    && injectedTabs.some(([id, _]) => tab.id === id)
+  );
+  console.log(
+    'reloading injected tabs to stop script:', 
+    JSON.stringify(injectedButNotTrackedTabs.map((tab) => [tab.id, tab.url]))
+  );
+  await Promise.all(
+      // Tabs with undefined ids and urls are filtered out above
+    injectedButNotTrackedTabs.map((tab) => browser.tabs.reload(tab.id!))
+  );
+  // Updating `injectedTabs` is done on reload
+}
+
 // Respond to messages from the content scripts
 browser.runtime.onMessage.addListener(async (message, sender) => {
-  const trackedSitePatterns = await StoreService.get('trackedSitePatterns');
-  const isTabTracked = trackedSitePatterns.some((pattern) => new URLPattern(pattern).test(sender.tab?.url));
+  const trackedSitePatterns = (await StoreService.safeGet('trackedSitePatterns'))
+  .map((pattern) => new URLPattern(pattern));
+  const isTabTracked = trackedSitePatterns.some(
+    (pattern) => pattern.test(sender.tab?.url)
+  );
+  const injectedTabs = await TempStoreService.safeGet('injectedTabs');
+  console.log('injectedTabs:', JSON.stringify(injectedTabs))
   if (isTabTracked && SaveTimeTypedMessage.isInstance(message)) {
-      invariant(message.timeTypedMS > 0);
-      await saveTimeTypedAndNotifyUser(message.timeTypedMS);
+    invariant(message.timeTypedMS > 0);
+    await saveTimeTypedAndNotifyUser(message.timeTypedMS);
+  } else if (ReloadInjectedButNotTrackedTabsMessage.isInstance(message)) {
+    await reloadInjectedButNotTrackedTabs(trackedSitePatterns);
+  } else if (InjectTrackedButNotInjectedTabsMessage.isInstance(message)) {
+    await injectTrackedButNotInjectedTabs(trackedSitePatterns);
   }
 });
 
@@ -100,13 +135,17 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (changeInfo.url === undefined) {
     return;
   }
+
   console.log('navigated to:', changeInfo.url);
-  const trackedSitePatterns = (await StoreService.get('trackedSitePatterns'))
+  const trackedSitePatterns = (await StoreService.safeGet('trackedSitePatterns'))
   .map((pattern) => new URLPattern(pattern));
-  const injectedTabs = await TempStoreService.get('injectedTabs');
+  const injectedTabs = await TempStoreService.safeGet('injectedTabs');
   const injectedTabIndex = injectedTabs.findIndex(([id, _]) => id === tabId);
   const wasInjectedTab = injectedTabIndex !== -1;
-  const isNewSiteTracked = trackedSitePatterns.some((pattern) => pattern.test(changeInfo.url));
+  const isNewSiteTracked = trackedSitePatterns.some(
+    (pattern) => pattern.test(changeInfo.url)
+  );
+
   if (wasInjectedTab && isNewSiteTracked) {
     injectedTabs.forEach
     const newInjectedTabs = injectedTabs
@@ -114,38 +153,102 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     .concat([[tabId, changeInfo.url]]);
     console.log('updating url in TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
+
   } else if (wasInjectedTab && changeInfo.status === 'loading') {
     const newInjectedTabs = injectedTabs.filter((_, i) => i !== injectedTabIndex);
     console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
     await TempStoreService.set('injectedTabs', newInjectedTabs);
-  // } else if (wasInjectedTab && changeInfo.status === 'complete') {
-  //   await browser.tabs.reload(tabId);
-  // } else if (isNewSiteTracked) {
+
   } else if (!wasInjectedTab && isNewSiteTracked) {
     const newInjectedTabs = injectedTabs.concat([[tabId, changeInfo.url]]);
-    console.log('injecting script and adding TabInfo', JSON.stringify(newInjectedTabs));
-    const details = await browser.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      files: ['./dist/content-script.js'],
-    })
-    console.log(JSON.stringify(details));
-    await TempStoreService.set('injectedTabs', newInjectedTabs);
+    console.log(
+      'injecting script and adding TabInfo', JSON.stringify(newInjectedTabs)
+    );
+    await Promise.all([
+      executeContentScript(tabId, 'background'),
+      TempStoreService.set('injectedTabs', newInjectedTabs)
+    ]);
   }
 });
 
 browser.tabs.onRemoved.addListener(async (tabId) => {
-  const injectedTabs = await TempStoreService.get('injectedTabs');
+  const injectedTabs = await TempStoreService.safeGet('injectedTabs');
   const newInjectedTabs = injectedTabs.filter(([id, _]) => id !== tabId);
   console.dir('removing TabInfo', JSON.stringify(newInjectedTabs));
   await TempStoreService.set('injectedTabs', newInjectedTabs);
 });
 
-// TODO check TempPermission, set to undefined after done; 
-// drop onPermission(Removed/Granted); 
-// set store values so double tap isn't required
-// browser.permissions.onAdded
-// browser.permissions.onRemoved
+browser.permissions.onAdded.addListener(async (permissions) => {
+  console.log(JSON.stringify(permissions));
+  const [notifPreference, trackedSitePatterns] = await Promise.all([
+    TempStoreService.safeGet('notifPreference'),
+    TempStoreService.safeGet('trackedSitePatterns')
+  ]);
+  const originPermissions = (permissions.origins ?? []).map(
+    (pattern) => new URLPattern(pattern)
+  );
+  if (
+    notifPreference !== null 
+  && permissions.permissions?.includes('notifications')
+  ) {
+    await Promise.all([
+      StoreService.set('notifPreference', notifPreference),
+      TempStoreService.set('notifPreference', null)
+    ]);
+  } else if (trackedSitePatterns.every((p2) => originPermissions.some((p1) => p1.test(p2)))) {
+    const oof = trackedSitePatterns.map((pattern) => new URLPattern(pattern));
+    const [_, injectedTabs, tabs] = await Promise.all([
+      StoreService.set('trackedSitePatterns', trackedSitePatterns),
+      TempStoreService.safeGet('injectedTabs'),
+      await browser.tabs.query({})
+    ]);
+    const trackedButNotInjectedTabs = tabs.filter(
+      (tab) => 
+      tab.id !== undefined 
+      && tab.url !== undefined
+      && oof.some((pattern) => pattern.test(tab.url))
+      && !injectedTabs.some(([id, _]) => tab.id === id)
+    ); 
+    // Tabs with undefined ids are filtered out above
+    const newInjectedTabs = injectedTabs.concat(
+      trackedButNotInjectedTabs.map((tab) => [tab.id!, tab.url!])
+    );
+    await Promise.all([
+      trackedButNotInjectedTabs.map(
+        (tab) => executeContentScript(tab.id!, 'background')
+      ),
+      TempStoreService.set('injectedTabs', newInjectedTabs),
+      TempStoreService.set('trackedSitePatterns', [])
+    ]);
+    console.log(
+      'injected shits into', 
+      JSON.stringify(trackedButNotInjectedTabs.map((tab) => [tab.id, tab.url]))
+    );
+  } 
+});
 
-browser.runtime.onInstalled.addListener(async () => {
-  await Promise.all(Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value)));
+// Purely for dealing with interactions from user in the manage extensions page
+browser.permissions.onRemoved.addListener(async (permissions) => {
+  console.log(JSON.stringify(permissions));
+  const [notifPreference, trackedSitePatterns] = await Promise.all([
+    TempStoreService.safeGet('notifPreference'),
+    TempStoreService.safeGet('trackedSitePatterns')
+  ]);
+});
+
+browser.runtime.onInstalled.addListener(async (details) => {
+  // TODO reset for final extension
+  // if (details.reason !== 'install') {
+  //   return;
+  // }
+  const res = await browser.permissions.remove(
+    { permissions: ['notifications'], origins: ['<all_urls>', 'https://monkeytype.com/*']}
+  );
+  if (res) {
+    console.log('reset permissions');
+  }
+
+  await Promise.all(
+    Object.entries(defaultStore).map(([key, value]) => StoreService.set(key, value))
+  );
 });
