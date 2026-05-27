@@ -14,32 +14,32 @@ function getIntervalManager(callback: () => void, timeout: number): () => void {
 
 function getTimingCallbacks(): [() => void, () => void] {
   const oneSecInMs = 1_000;
-  const timeout = 1_000;
-  let total: number = 0;
-  let start: number = 0;
+  const timeoutMs = 1_000;
+  let totalMs: number = 0;
+  let startMs: number = 0;
   const recordKeyPress = () => { 
-    if (!start) {
-      start = performance.now(); 
-      setTimeout(recordTimeTyped, timeout);
+    if (!startMs) {
+      startMs = performance.now(); 
+      setTimeout(recordTimeTyped, timeoutMs);
     }
   }
   const recordTimeTyped = () => {
-    invariant(start != 0);
-    const end = performance.now()
-    const expectedEnd = start + timeout; 
-    const drift = end - expectedEnd;
-    total += timeout + drift;
-    console.log("recorded", timeout + drift / oneSecInMs);
-    start = 0;
+    invariant(startMs != 0);
+    const endMs = performance.now()
+    const expectedEndMs = startMs + timeoutMs; 
+    const driftMs = endMs - expectedEndMs;
+    totalMs += timeoutMs + driftMs;
+    console.log("recorded", timeoutMs + driftMs / oneSecInMs);
+    startMs = 0;
   };
   const saveTimeTyped = async () => {
-    if (!total) {
+    if (!totalMs) {
       return
     }
-    const message: Message = { action: 'saveTimeTyped', timeTypedMs: total };
+    const message: Message = { action: 'saveTimeTyped', timeTypedMs: totalMs };
     await browser.runtime.sendMessage(message);
-    console.log("saved", total / oneSecInMs);
-    total = 0;
+    console.log("saved", totalMs / oneSecInMs);
+    totalMs = 0;
   }
   return [recordKeyPress, saveTimeTyped]
 }
