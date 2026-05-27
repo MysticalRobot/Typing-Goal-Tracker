@@ -1,13 +1,14 @@
 {
-	"name": "Typing-Goal-Tracker",
-	"devDependencies": {
-		"@types/firefox-webext-browser": "^120.0.5",
-		"typescript": "^6.0.3"
-	},
-	"private": true,
-	"scripts": {
-		"build": "rm -rf ./dist && bun build.js && web-ext build --overwrite-dest",
-		"dev": "bun run build && web-ext run --devtools",
-		"zen": "bun run build && web-ext run --devtools --firefox-binary /Applications/Zen.app/Contents/MacOS/zen"
-	}
+  "name": "Typing-Goal-Tracker",
+  "devDependencies": {
+    "@types/firefox-webext-browser": "^120.0.5",
+    "typescript": "^6.0.3",
+    "web-ext": "^10.2.0"
+  },
+  "private": true,
+  "scripts": {
+    "build": "rm -rf ./dist && bun build.js && web-ext build --overwrite-dest",
+    "dev": "bun run build && web-ext run --devtools",
+    "zen": "bun run build && web-ext run --devtools --firefox-binary /Applications/Zen.app/Contents/MacOS/zen"
+  }
 }

@@ -12,8 +12,8 @@ A tool that helps users reach their daily typing goals.
 
 - Install [Bun](https://bun.com/), this project's build tool and package manager. 
     - The version this project uses is `v1.3.14`
-- Install [Typescript](https://www.typescriptlang.org/) and [Web-ext](https://github.com/mozilla/web-ext) as development dependencies with: `bun i`
-    - Versions details can be found in `bun.lock` and `package.json`
+- Install the rest with: `bun i`
+    - Dependency details can be found in `bun.lock` and `package.json`
 
 ### Scripts
 
