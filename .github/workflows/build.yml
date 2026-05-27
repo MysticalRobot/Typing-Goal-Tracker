@@ -1,8 +1,8 @@
 name: Dev dependency installation, and src compilation (TS->JS) and bundling
+on:
+  push:
+    branches: [ main ]
 jobs:
-  on:
-    push:
-      branches: [ main ]
   build:
     name: build
     runs-on: ubuntu-latest
