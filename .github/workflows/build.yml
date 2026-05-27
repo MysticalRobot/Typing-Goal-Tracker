@@ -11,5 +11,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2 # uses bun version in package.json
 
       - run: bun i # installs dev dependencies
-      - run: bun web-ext lint # lint the manifest v3 and amo metadata
       - run: bun run build # builds project
+      - run: bun web-ext lint # lint the manifest v3 and amo metadata
