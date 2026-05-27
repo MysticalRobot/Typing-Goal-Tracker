@@ -210,35 +210,39 @@ browser.tabs.onRemoved.addListener(async (tabId) => {
   await TempStoreService.set({ injectedTabs: newInjectedTabs });
 });
 
+// TODO investigate: only umbrella permissions are given, does this cause any problems
 browser.permissions.onAdded.addListener(async (permissions) => {
   console.log('added permissions:', JSON.stringify(permissions));
-  const items = await TempStoreService.safeGetAll(
-    'notifPreference', 'trackedSites'
-  );
+  const [tempItems, trackedSites] = await Promise.all([
+    TempStoreService.safeGetAll('notifPreference', 'trackedSites'),
+    StoreService.safeGet('trackedSites')
+  ]);
 
   if (
-    items.notifPreference !== null 
+    tempItems.notifPreference !== null 
   && permissions.permissions?.includes('notifications')
   ) {
     return Promise.all([
-      StoreService.set({ notifPreference: items.notifPreference }),
+      StoreService.set({ notifPreference: tempItems.notifPreference }),
       TempStoreService.set({ notifPreference: defaultTempStore.notifPreference })
     ]);
   } 
 
-  // TODO set the origins 
-  const originPermissions = 
-    (permissions.origins?.filter((origin) => origin !== '<all_urls>') ?? [])
-  .map((pattern) => new URLPattern(pattern));
-  if (!items.trackedSites.every((p2) => originPermissions.some((p1) => p1.test(p2)))) {
-    return;
-  }
-
-  const trackedSitePatterns = items.trackedSites.map(
-    (pattern) => new URLPattern(pattern)
+  const origins = permissions.origins?.filter(
+    (origin) => origin !== '<all_urls>'
+  ) ?? [];
+  const originPatterns = origins.map((origin) => new URLPattern(origin));
+  const isPermissionAddedFromPopup = tempItems.trackedSites.length !== 0;
+  const newTrackedSites = isPermissionAddedFromPopup 
+  ? tempItems.trackedSites
+  : origins.concat(
+    trackedSites.filter(
+      (site) => !originPatterns.some((pattern) => pattern.test(site))
+    )
   );
+  const newTrackedSitePatterns = newTrackedSites.map((s) => new URLPattern(s));
   const [_, injectedTabs, tabs] = await Promise.all([
-    StoreService.set({ trackedSites: items.trackedSites }),
+    StoreService.set({ trackedSites: newTrackedSites }),
     TempStoreService.safeGet('injectedTabs'),
     await browser.tabs.query({})
   ]);
@@ -246,7 +250,7 @@ browser.permissions.onAdded.addListener(async (permissions) => {
     (tab) => 
     tab.id !== undefined 
     && tab.url !== undefined
-    && trackedSitePatterns.some((pattern) => pattern.test(tab.url))
+    && newTrackedSitePatterns.some((pattern) => pattern.test(tab.url))
     && !injectedTabs.some(([id, _]) => tab.id === id)
   ); 
   // Tabs with undefined ids are filtered out above
@@ -276,11 +280,10 @@ browser.permissions.onRemoved.addListener(async (permissions) => {
   } 
 
   const items = await StoreService.safeGetAll('trackedSites', 'reloadingPreference');
-  const originPermissions = 
-    (permissions.origins?.filter((origin) => origin !== '<all_urls>') ?? [])
-  .map((pattern) => new URLPattern(pattern));
+  const origins = permissions.origins?.filter((o) => o !== '<all_urls>') ?? [];
+  const originPatterns = origins.map((o) => new URLPattern(o));
   const newTrackedSites = items.trackedSites.filter(
-    ([_, url]) => originPermissions.some((origin) => origin.test(url))
+    (site) => !originPatterns.some((pattern) => pattern.test(site))
   );
   if (items.reloadingPreference === 'off') {
     return StoreService.set({ trackedSites: newTrackedSites });

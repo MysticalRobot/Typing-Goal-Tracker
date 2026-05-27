@@ -125,15 +125,12 @@ async function reloadingPreferenceFormHandler(e: PointerEvent): Promise<void> {
 } 
 
 async function displayPopupToggle(popupToggle: HTMLSpanElement) {
-  const extensionCommands = await browser.commands.getAll();
+  const extensionCmds = await browser.commands.getAll();
   const popupToggleName = '_execute_action';
-  const hasCommand = extensionCommands.some((cmd) => cmd.name === popupToggleName);
-  invariant(hasCommand);
-  popupToggle.innerText = 
-    extensionCommands.find((cmd) => cmd.name === popupToggleName)!
-      .shortcut
-      ?.toLocaleLowerCase() 
-      ?? 'Failed to get command';
+  const cmdIndex = extensionCmds.findIndex((cmd) => cmd.name === popupToggleName);
+  invariant(cmdIndex !== -1);
+  const cmdShortcut = extensionCmds.at(cmdIndex)!.shortcut?.toLocaleLowerCase();
+  popupToggle.innerText = cmdShortcut ?? 'Failed to get command';
 }
 
 function getTrackedSites(trackedSiteElements: HTMLElement): string[] {
@@ -225,11 +222,12 @@ async function trackedSitesHandler(e: PointerEvent): Promise<void> {
   if (!res) {
     return;
   }
-  // TODO possibly send for reloading
   console.log('removed permission for:', span.innerText);
   if (items.reloadingPreference === 'on') {
-    const removedSite = new URLPattern(span.innerText);
-    const injectedButNotTrackedTabs = injectedTabs.filter(([_, url]) => removedSite.test(url));
+    const removedSitePattern = new URLPattern(span.innerText);
+    const injectedButNotTrackedTabs = injectedTabs.filter(
+      ([_, url]) => removedSitePattern.test(url)
+    );
     console.log(
       'reloading injected but not tracked tabs:',
       JSON.stringify(injectedButNotTrackedTabs)
