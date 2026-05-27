@@ -1,0 +1,15 @@
+name: Dev dependency installation, and src compilation (TS->JS) and bundling
+jobs:
+  on:
+    push:
+      branches: [ main ]
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5 # checks out repo
+      - uses: oven-sh/setup-bun@v2 # uses bun version in package.json
+
+      - run: bun i # installs dev dependencies
+      - run: web-ext lint # lint the manifest v3 and amo metadata
+      - run: bun run build # builds project
