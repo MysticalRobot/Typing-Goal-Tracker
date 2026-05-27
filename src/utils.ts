@@ -1,10 +1,10 @@
 import { 
   type DailyGoals, 
   type Store, 
-  type Message,
   type SerializedDate,
   type TempStore,
   type NotifPreference,
+  type Items,
 } from './types.ts';
 
 export function invariant(cond: any, msg?: string): asserts cond {
@@ -90,17 +90,17 @@ export function matchesURLPattern(p1: string) {
   };
 }
 
-export function getTrackedSitePatternElement(
-  trackedSitePattern: string
+export function getTrackedSiteElement(
+  trackedSite: string
 ): HTMLDivElement {
-  // `<div class="threeToOneSplit trackedSitePattern" >
+  // `<div class="threeToOneSplit trackedSite" >
   //   <span>${site}</span>
   //   <button class="hoverable">x</button>
   // </div>`
   const div = document.createElement('div');
-  div.classList.add('threeToOneSplit', 'trackedSitePattern');
+  div.classList.add('threeToOneSplit', 'trackedSite');
   const span = document.createElement('span');
-  span.innerText = trackedSitePattern;
+  span.innerText = trackedSite;
   const button = document.createElement('button');
   button.innerText = 'x';
   button.classList.add('hoverable');
@@ -108,7 +108,7 @@ export function getTrackedSitePatternElement(
   return div;
 }
 
-export function executeContentScript(
+export function injectContentScript(
   tabId: number, injectingScript: 'background' | 'popup'
 ): Promise<browser.scripting.InjectionResult[]> {
   const scriptRoot = injectingScript === 'background' ? './dist/' : './';
@@ -119,13 +119,13 @@ export function executeContentScript(
 }
 
 export const defaultStore: Store = {
-  timeTypedMS: 0,
+  timeTypedMs: 0,
   timeTypedDate: getSerializedDate(new Date()),
   // TODO revert to 0s
   dailyGoalsMin: [1, 1, 1, 1, 1, 1, 1], 
   notifPreference: 'never',
   reloadingPreference: 'off',
-  trackedSitePatterns: [],
+  trackedSites: [],
 } as const;
 export const dailyGoalsOrder = [
   'sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'
@@ -139,80 +139,67 @@ export const notifPermission: browser.permissions.Permissions = {
 export const reloadingPreferences = ['off', 'on'] as const;
 
 export function getSiteTrackingPermission(
-  trackedSitePatterns: string[]
+  trackedSites: string[]
 ):  browser.permissions.Permissions {
   return { 
-    origins: trackedSitePatterns 
+    origins: trackedSites 
   };
 }
 
 export class StoreService {
   static async safeGet<T extends keyof Store>(key: T): Promise<Store[T]> {
-    const storage = await browser.storage.sync.get(key);
-    const value = storage[key] ?? defaultStore[key];
-    return value;
+    const item = await browser.storage.sync.get(key);
+    return item[key] ?? defaultStore[key];
+  }
+  static async safeGetAll<T extends keyof Store>(
+    ...keys: T[]
+  ): Promise<Items<Store, T>> {
+    const items = await browser.storage.sync.get(keys);
+    return Object.fromEntries(
+      keys.map((key) => items[key] = [key, items[key] ?? defaultStore[key]])
+    );
   }
   // TODO reject if too much
   // const getByteLength = (s: string) => new TextEncoder().encode(s).length;
   // const maxItemSize = 8192;
-  static async set<T extends keyof Store>(key: T, value: Store[T]): Promise<void> {
-    await browser.storage.sync.set({ [key]:value });
+  static async set<T extends keyof Store>(
+    items: Items<Store, T>
+  ): Promise<void> {
+    return browser.storage.sync.set(items);
   }
 }
 
-const defaultTempStore: TempStore = { 
+export const defaultTempStore: TempStore = { 
   injectedTabs: [], 
   notifPreference: null, 
-  trackedSitePatterns: [],
+  trackedSites: [],
 } as const;
 
 export class TempStoreService {
   static async safeGet<T extends keyof TempStore>(key: T): Promise<TempStore[T]> {
-    const storage = await browser.storage.session.get(key);
-    const value = storage[key] ?? defaultTempStore[key];
-    return value;
+    const item = await browser.storage.session.get(key);
+    return item[key] ?? defaultTempStore[key];
+  }
+  static async safeGetAll<T extends keyof TempStore>(
+    ...keys: T[]
+  ): Promise<Items<TempStore, T>> {
+    const items = await browser.storage.session.get(keys);
+    return Object.fromEntries(
+      keys.map((key) => items[key] = [key, items[key] ?? defaultTempStore[key]])
+    );
   }
   // TODO reject if too much
-  static async set<T extends keyof TempStore>(key: T, value: TempStore[T]): Promise<void> {
-    await browser.storage.session.set({ [key]:value });
+  static async set<T extends keyof TempStore>(
+    items: Items<TempStore, T>
+  ): Promise<void> {
+    return browser.storage.session.set(items);
   }
 }
 
-export class SaveTimeTypedMessage implements Message {
-  action: 'saveTimeTyped';
-  timeTypedMS: number;
-  constructor(timeTypedMS: number) {
-    this.action = 'saveTimeTyped';
-    this.timeTypedMS = timeTypedMS;
-  }
-  static isInstance(obj: any): boolean {
-    return obj.action == 'saveTimeTyped' && typeof obj.timeTypedMS === 'number';
-  }
-}
-
-export class InjectTrackedButNotInjectedTabsMessage implements Message {
-  action: 'injectTrackedButNotInjectedTabs';
-  constructor() {
-    this.action = 'injectTrackedButNotInjectedTabs';
-  }
-  static isInstance(obj: any): boolean {
-    return obj.action == 'injectTrackedButNotInjectedTabs';
-  }
-}
-
-export class ReloadInjectedButNotTrackedTabsMessage implements Message {
-  action: 'reloadInjectedButNotTrackedTabs';
-  constructor() {
-    this.action = 'reloadInjectedButNotTrackedTabs';
-  }
-  static isInstance(obj: any): boolean {
-    return obj.action == 'reloadInjectedButNotTrackedTabs';
-  }
-}
-
-export async function getDailyGoalMin(dailyGoalsMin: DailyGoals): Promise<number> {
+export function getDailyGoalMin(
+  dailyGoalsMin: DailyGoals, timeTypedDate: SerializedDate
+): number {
   invariant(dailyGoalsMin.length === 7);
-  const timeTypedDate = await StoreService.safeGet('timeTypedDate');
   const timeTypedDayOfWeek = new Date(timeTypedDate).getUTCDay();
   return dailyGoalsMin.at(timeTypedDayOfWeek)!;
 }

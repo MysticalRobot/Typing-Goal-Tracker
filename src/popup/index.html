@@ -69,8 +69,8 @@
     <button class="radioButton hoverable" data-value="on">on</button>
   </form>
   <h2>tracked sites</h2>
-  <form id="sitePatternInputForm">
-    <label id="sitePatternInputLabel" for="sitePatternInput">
+  <form id="trackedSitesForm">
+    <label id="trackedSiteInputLabel" for="trackedSiteInput">
       site or
       <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns">
         match pattern
@@ -78,23 +78,23 @@
     </label>
     <!-- TODO add more explanations and add links between explanataions -->
     <p class="settingDescription">hello how are you</p>
-    <div id="sitePatternTrackingInputs" class="threeToOneSplit">
+    <div id="trackedSiteInputs" class="threeToOneSplit">
       <!-- 
         Accepts a subset of the following patterns of URLs:
         https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Match_patterns 
       -->
       <!-- TODO make / for path at end optional, slap on / in onInput handler -->
       <!-- TODO limit max length to 8000 -->
-      <input id="sitePatternInput" 
+      <input id="trackedSiteInput" 
              type="text" 
              placeholder="https://monkeytype.com/"
              required 
              pattern="(https?|wss?)(:\/\/)((?:\*|(?:\*\.)?[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*(?::[0-9]+)?))(\/.*)"
              />
-      <button id="trackSitePattern" class="hoverable"/>track</button>
+      <button id="trackSite" class="hoverable"/>track</button>
     </div>
   </form>
-  <div id="trackedSitePatterns" >
+  <div id="trackedSites" >
   </div>
 </body>
 

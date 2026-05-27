@@ -1,4 +1,5 @@
-import { invariant, SaveTimeTypedMessage } from "./utils";
+import { invariant } from './utils';
+import { type Message } from './types';
 
 function getIntervalManager(callback: () => void, timeout: number): () => void {
   let interval: number | undefined = undefined
@@ -12,7 +13,7 @@ function getIntervalManager(callback: () => void, timeout: number): () => void {
 }
 
 function getTimingCallbacks(): [() => void, () => void] {
-  const oneSecInMS = 1_000;
+  const oneSecInMs = 1_000;
   const timeout = 1_000;
   let total: number = 0;
   let start: number = 0;
@@ -28,15 +29,16 @@ function getTimingCallbacks(): [() => void, () => void] {
     const expectedEnd = start + timeout; 
     const drift = end - expectedEnd;
     total += timeout + drift;
-    console.log("recorded", timeout + drift / oneSecInMS);
+    console.log("recorded", timeout + drift / oneSecInMs);
     start = 0;
   };
   const saveTimeTyped = async () => {
     if (!total) {
       return
     }
-    await browser.runtime.sendMessage(new SaveTimeTypedMessage(total));
-    console.log("saved", total / oneSecInMS);
+    const message: Message = { action: 'saveTimeTyped', timeTypedMs: total };
+    await browser.runtime.sendMessage(message);
+    console.log("saved", total / oneSecInMs);
     total = 0;
   }
   return [recordKeyPress, saveTimeTyped]
@@ -48,8 +50,8 @@ function main() {
   document.addEventListener('keypress', recordKeyPress);
 
   // periodically save the time spent timing when the tab is active
-  const fiveSecInMS = 5_000;
-  const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMS);
+  const fiveSecInMs = 5_000;
+  const intervalManager = getIntervalManager(saveTimeTyped, fiveSecInMs);
   document.addEventListener('visibilitychange', intervalManager);
   intervalManager();
 }

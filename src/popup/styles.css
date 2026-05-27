@@ -154,15 +154,15 @@ input {
   }
 }
 
-#sitePatternInputLabel {
+#trackedSiteInputLabel {
   margin-bottom: 0.25rem;
 }
 
-#sitePatternInput {
+#trackedSiteInput {
   margin-bottom: 0.5rem;
 }
 
-#trackSitePattern {
+#trackSite {
   width: 100%;
   margin-bottom: 0.5rem;
 }
@@ -178,7 +178,7 @@ input {
   }
 }
 
-.trackedSitePattern {
+.trackedSite {
   background-color: var(--sub-alt-color);
   height: 1.75rem;
   align-items: center;
@@ -194,7 +194,7 @@ input {
   }
 }
 
-#sitePatternTrackingInputs {
+#trackedSiteInputs {
   grid-column-gap: 0.25rem;
 }
 

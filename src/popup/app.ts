@@ -5,35 +5,35 @@ import {
   getDailyGoalMin, 
   matchedByURLPattern, 
   matchesURLPattern, 
-  getTrackedSitePatternElement, 
+  getTrackedSiteElement, 
   notifPreferences, 
   dailyGoalsOrder, 
   notifPermission, 
   TempStoreService, 
   getSiteTrackingPermission, 
-  reloadingPreferences, 
-  ReloadInjectedButNotTrackedTabsMessage,
-  InjectTrackedButNotInjectedTabsMessage
+  reloadingPreferences,
+  defaultTempStore, 
 } from '../utils';
 import { 
   type DailyGoalInputs, 
   type DailyGoals,
   type PreferenceOptions,
   type Store,
+  type Message,
+  type NotifPreference,
+  type ReloadingPreference
 } from '../types';
 
 async function displayProgress(
   progressBar: HTMLProgressElement, dailyGoalsMin: DailyGoals
 ): Promise<void> {
-  const [timeTypedMS, dailyGoalMin] = await Promise.all([
-    StoreService.safeGet('timeTypedMS'),
-    getDailyGoalMin(dailyGoalsMin)
-  ]);
+  const items = await StoreService.safeGetAll('timeTypedMs', 'timeTypedDate');
+  const dailyGoalMin = getDailyGoalMin(dailyGoalsMin, items.timeTypedDate);
   const maxProgressValue = 100;
   if (dailyGoalMin === 0) {
     progressBar.value = maxProgressValue;
   } else {
-    const progressRatio = getRatio(timeTypedMS, dailyGoalMin);
+    const progressRatio = getRatio(items.timeTypedMs, dailyGoalMin);
     progressBar.value = Math.min(maxProgressValue, progressRatio * 100);
   }
 }
@@ -51,7 +51,7 @@ function getDailyGoalsFormHandler(dailyGoalInputs: DailyGoalInputs) {
     const dailyGoalsMin = dailyGoalInputs.map((input) => input.valueAsNumber);
     const hasNumericGoalValues = !dailyGoalsMin.some(Number.isNaN);
     invariant(hasNumericGoalValues);
-    await StoreService.set('dailyGoalsMin', dailyGoalsMin as DailyGoals);
+    await StoreService.set({ dailyGoalsMin: dailyGoalsMin as DailyGoals });
   }
 }
 
@@ -72,7 +72,7 @@ async function displayRadioButtons<T extends keyof Store>(
   correspondingButton!.setAttribute('data-checked', 'true');
 }
 
-async function notifPreferenceFormHandler(e: PointerEvent): Promise<void> {
+async function notifPreferenceFormHandler(e: PointerEvent): Promise<any> {
   if (!(e.target instanceof HTMLButtonElement)) {
     return;
   }
@@ -82,30 +82,29 @@ async function notifPreferenceFormHandler(e: PointerEvent): Promise<void> {
   const isRemovingPermission = value === 'never';
   if (isRemovingPermission) {
     console.log('removing permission:', JSON.stringify(notifPermission));
-    await Promise.all([
+    return Promise.all([
       // If permission does not exist, then does nothing and succeeds 
       browser.permissions.remove(notifPermission),
-      StoreService.set('notifPreference', value)
+      StoreService.set({ notifPreference: value })
     ]);
-  } else {
-    console.log('requesting permission:', JSON.stringify(notifPermission));
-    // `Promise.all` preserves the condition: 
-    // 'permissions.request may only be called from a user input handler' 
-    const [_, __, isPermissionGranted] = await Promise.all([
-      TempStoreService.set('notifPreference', value), 
-      // If permission is already granted, then does nothing and succeeds 
-      browser.permissions.request(notifPermission),
-      browser.permissions.contains(notifPermission)
-    ]);
-    // User may have granted the permission in the extension settings
-    // TODO show error if not
-    if (isPermissionGranted) {
-      await Promise.all([
-        TempStoreService.set('notifPreference', null),
-        StoreService.set('notifPreference', value)
-      ]);
-    }
   } 
+
+  console.log('requesting permission:', JSON.stringify(notifPermission));
+  // The concurrency of `Promise.all` preserves the condition: 
+  // 'permissions.request may only be called from a user input handler' 
+  const [_, isPermissionGranted] = await Promise.all([
+    TempStoreService.set({ notifPreference: value as NotifPreference }), 
+    // If permission is already granted, then does nothing and succeeds 
+    browser.permissions.request(notifPermission)
+  ]);
+  // User may have granted the permission in the extension settings
+  // TODO show error if not
+  if (isPermissionGranted) {
+    return Promise.all([
+      TempStoreService.set({ notifPreference: defaultTempStore.notifPreference }),
+      StoreService.set({ notifPreference: value as NotifPreference }), 
+    ]);
+  }
 }
 
 async function reloadingPreferenceFormHandler(e: PointerEvent): Promise<void> {
@@ -115,12 +114,13 @@ async function reloadingPreferenceFormHandler(e: PointerEvent): Promise<void> {
   const value = e.target.getAttribute('data-value') ?? ''; 
   const valueIndex = reloadingPreferences.indexOf(value);
   invariant(valueIndex !== -1);
-  await StoreService.set('reloadingPreference', value);
+  await StoreService.set({ reloadingPreference: value as ReloadingPreference });
   const isRemovingPermission = value === 'off';
   if (isRemovingPermission) { 
     return;
   } 
-  await browser.runtime.sendMessage(new ReloadInjectedButNotTrackedTabsMessage());
+  const message: Message = { action: 'reloadInjectedButNotTrackedTabs' };
+  await browser.runtime.sendMessage(message);
   location.reload();
 } 
 
@@ -136,91 +136,90 @@ async function displayPopupToggle(popupToggle: HTMLSpanElement) {
       ?? 'Failed to get command';
 }
 
-function getTrackedSitePatterns(trackedSitePatterns: HTMLElement): string[] {
-  return Array.from(trackedSitePatterns.children).map((trackedSitePattern) => {
-    const span = trackedSitePattern.firstElementChild;
+function getTrackedSites(trackedSiteElements: HTMLElement): string[] {
+  return Array.from(trackedSiteElements.children).map((trackedSiteElement) => {
+    const span = trackedSiteElement.firstElementChild;
     invariant(span instanceof HTMLSpanElement);
     return span.innerText;
   });
 }
 
-function getSitePatternInputFormHandler(
-  sitePatternInput: HTMLInputElement, trackedSitePatternsElement: HTMLElement
+function getTrackedSitesFormHandler(
+  trackedSiteInput: HTMLInputElement, trackedSitesElement: HTMLElement
 ) {
-  return async function trackSitePattern() {
-    const newPattern = sitePatternInput.value;
-    invariant(newPattern.length > 0);
+  return async function trackSite() {
+    const newSite = trackedSiteInput.value;
+    invariant(newSite.length > 0);
     // no need to do this (can pass in)
-    const trackedSitePatterns = getTrackedSitePatterns(trackedSitePatternsElement);
-    const matchedByNewPattern = matchedByURLPattern(newPattern);
-    const newTrackedSitePatterns = trackedSitePatterns.filter(
-      (trackedPattern) => !matchedByNewPattern(trackedPattern)
+    const trackedSites = getTrackedSites(trackedSitesElement);
+    const matchedByNewPattern = matchedByURLPattern(newSite);
+    const newTrackedSites = trackedSites.filter(
+      (trackedSite) => !matchedByNewPattern(trackedSite)
     );
-    const isNewSitePatternTracked = newTrackedSitePatterns.some(
-      (trackedPattern) => matchesURLPattern(trackedPattern)(newPattern)
+    const isNewSiteTracked = newTrackedSites.some(
+      (trackedSite) => matchesURLPattern(trackedSite)(newSite)
     );
-    if (!isNewSitePatternTracked) {
-      newTrackedSitePatterns.push(newPattern);
+    if (!isNewSiteTracked) {
+      newTrackedSites.push(newSite);
     }
-    const isChangeInTrackedSitePatterns = !isNewSitePatternTracked ||
-      trackedSitePatterns.length !== newTrackedSitePatterns.length
-    if (!isChangeInTrackedSitePatterns) {
+    const isChangeInTrackedSites = !isNewSiteTracked ||
+      trackedSites.length !== newTrackedSites.length
+    if (!isChangeInTrackedSites) {
       return;
     }
     try {
-      const siteTrackingPermission = getSiteTrackingPermission(newTrackedSitePatterns);
-      const [_, __, isPermissionGranted] = await Promise.all([
-        TempStoreService.set('trackedSitePatterns', newTrackedSitePatterns),
+      const siteTrackingPermission = getSiteTrackingPermission(newTrackedSites);
+      const [_, isPermissionGranted] = await Promise.all([
+        TempStoreService.set({ trackedSites: newTrackedSites }),
         browser.permissions.request(siteTrackingPermission),
-        browser.permissions.contains(siteTrackingPermission)
       ]); 
       // User may have granted the permission in the extension settings
       if (!isPermissionGranted) {
         throw new Error('Failed to get permission');
       }
+      const message: Message = { action: 'injectTrackedButNotInjectedTabs' };
       return Promise.all([
-        TempStoreService.set('trackedSitePatterns', []),
-        StoreService.set('trackedSitePatterns', newTrackedSitePatterns),
-        browser.runtime.sendMessage(new InjectTrackedButNotInjectedTabsMessage())
+        TempStoreService.set({ trackedSites: defaultTempStore.trackedSites }),
+        StoreService.set({ trackedSites: newTrackedSites }),
+        browser.runtime.sendMessage(message)
       ]);
     } catch (error) {
       console.error(error);
       invariant(error instanceof Error);
-      sitePatternInput.setCustomValidity(error.message);
+      trackedSiteInput.setCustomValidity(error.message);
       // TODO show error, but accept input, so that opening only on sites that
       // are wanted show permission status in frontend
     }
   };
 }
 
-async function displayTrackedSitePatterns(
-  trackedSitePatternsElement: HTMLElement
+async function displayTrackedSites(
+  trackedSitesElement: HTMLElement
 ): Promise<void> {
-  const trackedSitePatterns = await StoreService.safeGet('trackedSitePatterns');
-  const trackedPatternElements = trackedSitePatterns.map(
-    getTrackedSitePatternElement
+  const trackedSites = await StoreService.safeGet('trackedSites');
+  const trackedSiteElements = trackedSites.map(
+    getTrackedSiteElement
   );
-  trackedSitePatternsElement.append(...trackedPatternElements);
+  trackedSitesElement.append(...trackedSiteElements);
 }
 
-async function trackedSitePatternsHandler(e: PointerEvent): Promise<void> {
+async function trackedSitesHandler(e: PointerEvent): Promise<void> {
   if (!(e.target instanceof HTMLButtonElement)) {
     return;
   }
   const span = e.target.previousElementSibling;
   invariant(span instanceof HTMLSpanElement);
-  const [trackedSitePatterns, reloadingPreference, injectedTabs] = 
+  const [items, injectedTabs] = 
     await Promise.all([
-    StoreService.safeGet('trackedSitePatterns'),
-    StoreService.safeGet('reloadingPreference'),
+    StoreService.safeGetAll('trackedSites', 'reloadingPreference'),
     TempStoreService.safeGet('injectedTabs')
   ]);
-  invariant(trackedSitePatterns.includes(span.innerText));
-  const newTrackedSitePatterns = trackedSitePatterns.filter(
-    (trackedPattern) => trackedPattern !== span.innerText
+  invariant(items.trackedSites.includes(span.innerText));
+  const newTrackedSites = items.trackedSites.filter(
+    (trackedSite) => trackedSite !== span.innerText
   ); 
   const [_, res] = await Promise.all([
-    StoreService.set('trackedSitePatterns', newTrackedSitePatterns),
+    StoreService.set({ trackedSites: newTrackedSites }),
     browser.permissions.remove(getSiteTrackingPermission([span.innerText]))
   ]);
   if (!res) {
@@ -228,14 +227,16 @@ async function trackedSitePatternsHandler(e: PointerEvent): Promise<void> {
   }
   // TODO possibly send for reloading
   console.log('removed permission for:', span.innerText);
-  if (reloadingPreference === 'on') {
-    const removedSitePattern = new URLPattern(span.innerText);
-    const injectedButNotTrackedTabs = injectedTabs.filter(([_, url]) => removedSitePattern.test(url));
+  if (items.reloadingPreference === 'on') {
+    const removedSite = new URLPattern(span.innerText);
+    const injectedButNotTrackedTabs = injectedTabs.filter(([_, url]) => removedSite.test(url));
     console.log(
       'reloading injected but not tracked tabs:',
       JSON.stringify(injectedButNotTrackedTabs)
     );
-    await Promise.all(injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id)));
+    await Promise.all(
+      injectedButNotTrackedTabs.map(([id, _]) => browser.tabs.reload(id))
+    );
   }
   location.reload();
   // No need to remove from injection flag from temp store, that is handled by bg script
@@ -288,18 +289,18 @@ async function main() {
   );
   reloadingPreferenceForm.addEventListener('click', reloadingPreferenceFormHandler);
 
-  const trackedSitePatternsElement = document.getElementById('trackedSitePatterns');
-  invariant(trackedSitePatternsElement !== null);
-  await displayTrackedSitePatterns(trackedSitePatternsElement);
-  trackedSitePatternsElement.addEventListener('click', trackedSitePatternsHandler);
+  const trackedSitesElement = document.getElementById('trackedSites');
+  invariant(trackedSitesElement !== null);
+  await displayTrackedSites(trackedSitesElement);
+  trackedSitesElement.addEventListener('click', trackedSitesHandler);
 
-  const sitePatternInput = document.getElementById('sitePatternInput');
-  invariant(sitePatternInput instanceof HTMLInputElement);
-  const sitePatternInputForm = document.getElementById('sitePatternInputForm');
-  invariant(sitePatternInputForm instanceof HTMLFormElement);
-  sitePatternInputForm.addEventListener(
+  const trackedSiteInput = document.getElementById('trackedSiteInput');
+  invariant(trackedSiteInput instanceof HTMLInputElement);
+  const trackedSitesForm = document.getElementById('trackedSitesForm');
+  invariant(trackedSitesForm instanceof HTMLFormElement);
+  trackedSitesForm.addEventListener(
     'submit', 
-    getSitePatternInputFormHandler(sitePatternInput, trackedSitePatternsElement)
+    getTrackedSitesFormHandler(trackedSiteInput, trackedSitesElement)
   );
 }
 
